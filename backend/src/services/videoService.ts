@@ -1,12 +1,11 @@
 import ffmpeg from 'fluent-ffmpeg';
-import { promisify } from 'util';
-import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
-
-const execAsync = promisify(exec);
+import { transcriptionService } from './transcriptionService';
+import { summarizationService } from './summarizationService';
+import { addTitleToVideo } from '../utils/videoTextOverlayCanvas';
 
 export interface VideoMetadata {
   duration: number;
@@ -74,7 +73,7 @@ export class VideoService {
    */
   private generateRandomSegments(
     duration: number,
-    numSegments: number = 5,
+    numSegments: number = 3,
     minDuration: number = 5,
     maxDuration: number = 60
   ): Array<{ start: number; end: number }> {
@@ -127,7 +126,7 @@ export class VideoService {
   ): Promise<VideoSegment[]> {
     const metadata = await this.getVideoMetadata(inputPath);
     const {
-      numSegments = 5,
+      numSegments = 3,
       minDuration = 5,
       maxDuration = 60
     } = options;
@@ -151,6 +150,74 @@ export class VideoService {
 
       await this.extractSegment(inputPath, segment.start, segment.end, outputPath);
 
+      // Transcribe the segment and save to .txt file
+      try {
+        logger.info(`Transcribing segment ${i + 1}...`);
+        const transcription = await transcriptionService.transcribe(outputPath, {});
+        
+        // Create .txt file with same name as video
+        const txtPath = outputPath.replace(/\.mp4$/, '.txt');
+        await fs.writeFile(txtPath, transcription.text, 'utf-8');
+        
+        logger.info(`Transcription saved for segment ${i + 1}: ${txtPath}`);
+        
+        // Summarize the transcription and save to _summary.txt file
+        try {
+          if (summarizationService.isAvailable() && transcription.text.trim().length > 0) {
+            logger.info(`Summarizing segment ${i + 1}...`);
+            const summaryPath = outputPath.replace(/\.mp4$/, '_summary.txt');
+            await summarizationService.summarizeFile(txtPath, summaryPath, {
+              maxLength: 100,
+              style: 'concise'
+            });
+            logger.info(`Summary saved for segment ${i + 1}: ${summaryPath}`);
+            
+            // Generate social media content (description + title) for TikTok/Instagram
+            try {
+              logger.info(`Generating social media content for segment ${i + 1}...`);
+              const socialContent = await summarizationService.generateSocialMediaContentFromFile(txtPath, {
+                maxLength: 150,
+                language: 'en' // Always generate in English
+              });
+              logger.info(`Social media content saved for segment ${i + 1}: ${socialContent.descriptionPath} and ${socialContent.titlePath}`);
+              
+              // Add title overlay to video in the top black bar area
+              try {
+                logger.info(`Adding title overlay to video segment ${i + 1}...`);
+                
+                // Create backup of original video before adding title (to prevent duplicate overlays)
+                const originalBackupPath = outputPath.replace(/\.mp4$/, '_original_no_title.mp4');
+                try {
+                  await fs.copyFile(outputPath, originalBackupPath);
+                  logger.info(`Created backup of original video: ${path.basename(originalBackupPath)}`);
+                } catch (backupError) {
+                  logger.warn(`Failed to create backup: ${backupError}`);
+                }
+                
+                const videoWithTitlePath = await addTitleToVideo(outputPath, socialContent.titlePath);
+                
+                // Replace original video with version that has title
+                await fs.rename(videoWithTitlePath, outputPath);
+                
+                logger.info(`Title overlay added to segment ${i + 1}: ${outputPath}`);
+              } catch (overlayError) {
+                // Log error but don't fail the entire process
+                logger.warn(`Failed to add title overlay to segment ${i + 1}: ${overlayError instanceof Error ? overlayError.message : 'Unknown error'}`);
+              }
+            } catch (socialError) {
+              // Log error but don't fail the entire process
+              logger.warn(`Failed to generate social media content for segment ${i + 1}: ${socialError instanceof Error ? socialError.message : 'Unknown error'}`);
+            }
+          }
+        } catch (summaryError) {
+          // Log error but don't fail the entire process
+          logger.warn(`Failed to summarize segment ${i + 1}: ${summaryError instanceof Error ? summaryError.message : 'Unknown error'}`);
+        }
+      } catch (transcriptionError) {
+        // Log error but don't fail the entire process
+        logger.warn(`Failed to transcribe segment ${i + 1}: ${transcriptionError instanceof Error ? transcriptionError.message : 'Unknown error'}`);
+      }
+
       videoSegments.push({
         id: segmentId,
         startTime: segment.start,
@@ -165,7 +232,11 @@ export class VideoService {
   }
 
   /**
-   * Extract a single segment from video
+   * Extract a single segment from video and convert to 9:16 format
+   * 
+   * Converts video to vertical 9:16 aspect ratio (1080x1920) suitable for
+   * TikTok, Instagram Reels, and YouTube Shorts.
+   * Maintains the entire video image visible by scaling and adding black bars (letterbox/pillarbox).
    */
   private async extractSegment(
     inputPath: string,
@@ -174,12 +245,33 @@ export class VideoService {
     outputPath: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Target resolution for 9:16 format (1080x1920 - Full HD vertical)
+      const targetWidth = 1080;
+      const targetHeight = 1920;
+
       ffmpeg(inputPath)
         .setStartTime(startTime)
         .setDuration(endTime - startTime)
+        .videoFilters([
+          // Scale video to fit within 9:16 area while maintaining aspect ratio
+          // This ensures no part of the video is cropped
+          `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease`,
+          // Add black bars (padding) to fill remaining space and center the video
+          // This maintains the entire image visible within the 9:16 frame
+          `pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black`
+        ])
+        .outputOptions([
+          '-c:v libx264',
+          '-preset fast',
+          '-crf 23',
+          '-c:a aac',
+          '-b:a 128k',
+          '-movflags +faststart',
+          '-pix_fmt yuv420p'
+        ])
         .output(outputPath)
         .on('end', () => {
-          logger.debug(`Segment extracted: ${outputPath}`);
+          logger.debug(`Segment extracted and converted to 9:16 (${targetWidth}x${targetHeight}) with full image preserved: ${outputPath}`);
           resolve();
         })
         .on('error', (err) => {

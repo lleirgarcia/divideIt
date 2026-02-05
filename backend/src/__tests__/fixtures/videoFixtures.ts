@@ -1,8 +1,6 @@
 import { VideoMetadata, VideoSegment } from '../../services/videoService';
 import path from 'path';
 import fs from 'fs/promises';
-import { createWriteStream } from 'fs';
-import { Readable } from 'stream';
 
 /**
  * Test video fixtures directory
@@ -26,7 +24,7 @@ export const ensureFixturesDir = async (): Promise<void> => {
  */
 export const createTestVideoFile = async (
   filename: string = 'test-video.mp4',
-  duration: number = 10
+  _duration: number = 10
 ): Promise<string> => {
   await ensureFixturesDir();
   const filePath = path.join(FIXTURES_DIR, filename);

@@ -1,26 +1,38 @@
 # Multi-stage build for optimized production image
 FROM node:20-alpine AS base
 
-# Install security updates and ffmpeg
+# Install security updates, ffmpeg, and build deps for canvas (title overlay)
 RUN apk update && apk upgrade && \
-    apk add --no-cache ffmpeg && \
-    rm -rf /var/cache/apk/*
+    apk add --no-cache \
+        ffmpeg \
+        python3 \
+        make \
+        g++ \
+        cairo-dev \
+        pango-dev \
+        jpeg-dev \
+        giflib-dev \
+        librsvg-dev \
+    && rm -rf /var/cache/apk/*
 
 # Install dependencies stage
 FROM base AS deps
 WORKDIR /app
+ENV NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false
 COPY package*.json ./
 COPY tsconfig.json ./
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --omit=dev
 
 # Build stage
 FROM base AS builder
 WORKDIR /app
+ENV NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false
 COPY package*.json ./
 COPY tsconfig.json ./
-RUN npm ci
+RUN npm install
 COPY src ./src
-RUN npm run build
+COPY tsconfig.docker.json ./
+RUN npx tsc -p tsconfig.docker.json
 
 # Production stage
 FROM base AS runner
@@ -43,11 +55,11 @@ RUN mkdir -p uploads processed logs && \
 USER nodejs
 
 # Expose port
-EXPOSE 3001
+EXPOSE 3051
 
 # Health check with better error handling
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:3051/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
 
 # Start server
 CMD ["node", "dist/index.js"]

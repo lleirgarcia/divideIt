@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "strictPropertyInitialization": false,
+    "noImplicitReturns": false,
+    "strict": false,
+    "strictNullChecks": false,
+    "noImplicitAny": false
+  }
+}

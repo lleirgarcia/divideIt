@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+env:
+  NODE_VERSION: '20'
+
 jobs:
   backend-test:
     runs-on: ubuntu-latest
@@ -37,11 +40,22 @@ jobs:
         working-directory: ./backend
         run: npm test
       
-      - name: Upload coverage
+      - name: Run tests with coverage
+        working-directory: ./backend
+        run: npm run test:coverage
+      
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           directory: ./backend/coverage
           flags: backend
+          fail_ci_if_error: false
+      
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-coverage
+          path: ./backend/coverage
 
   frontend-test:
     runs-on: ubuntu-latest
@@ -68,9 +82,79 @@ jobs:
         working-directory: ./frontend
         run: npm test
       
+      - name: Run tests with coverage
+        working-directory: ./frontend
+        run: npm run test:coverage
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./frontend/coverage
+          flags: frontend
+          fail_ci_if_error: false
+      
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-coverage
+          path: ./frontend/coverage
+      
       - name: Build
         working-directory: ./frontend
         run: npm run build
+
+  e2e-test:
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+    
+    services:
+      ffmpeg:
+        image: jrottenberg/ffmpeg:latest
+        options: --health-cmd="ffmpeg -version" --health-interval=10s --health-timeout=5s --health-retries=3
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install root dependencies
+        run: npm ci
+      
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+      
+      - name: Build backend
+        working-directory: ./backend
+        run: npm run build
+      
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+      
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
+      
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 30
 
   docker-build:
     runs-on: ubuntu-latest

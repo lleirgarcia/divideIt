@@ -11,14 +11,14 @@ import { healthRoutes } from './routes/healthRoutes';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3051;
 
 // Security middleware
 app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || 'http://localhost:3050',
   credentials: true
 }));
 
@@ -41,7 +41,14 @@ app.use('/api/videos', videoRoutes);
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start server
+/**
+ * Starts the Express server
+ * 
+ * Listens on the configured port and logs startup information.
+ * Server handles video upload, processing, and download requests.
+ * 
+ * @returns {void}
+ */
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);

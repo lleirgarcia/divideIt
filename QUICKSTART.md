@@ -55,12 +55,12 @@ npm run dev
 ```
 
 This starts:
-- Backend API: http://localhost:3001
-- Frontend App: http://localhost:3000
+- Backend API: http://localhost:3051
+- Frontend App: http://localhost:3050
 
 ## First Use
 
-1. Open http://localhost:3000 in your browser
+1. Open http://localhost:3050 in your browser
 2. Upload a video file (MP4, MOV, or AVI)
 3. Configure split settings:
    - Number of segments (default: 5)
@@ -74,16 +74,16 @@ This starts:
 
 ### Port Already in Use
 
-If port 3000 or 3001 is already in use:
+If port 3050 or 3051 is already in use:
 
 **Backend:** Edit `backend/.env`:
 ```env
-PORT=3002
+PORT=3052
 ```
 
 **Frontend:** Edit `frontend/.env.local`:
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:3002
+NEXT_PUBLIC_API_URL=http://localhost:3052
 ```
 
 ### FFmpeg Not Found
@@ -101,7 +101,7 @@ FFPROBE_PATH=/path/to/ffprobe
 
 ### File Upload Fails
 
-- Check file size (max 500MB)
+- Check file size (max 1GB)
 - Verify file format (MP4, MOV, AVI)
 - Check backend logs: `backend/logs/combined.log`
 
@@ -119,8 +119,8 @@ docker-compose down
 ```
 
 Access:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:3001
+- Frontend: http://localhost:3050
+- Backend API: http://localhost:3051
 
 ## Next Steps
 

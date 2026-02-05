@@ -1,0 +1,12 @@
+aws_region     = "us-east-1"
+environment    = "production"
+vpc_cidr       = "10.0.0.0/16"
+backend_image  = "ghcr.io/your-org/divideit-backend:latest"
+frontend_image = "ghcr.io/your-org/divideit-frontend:latest"
+desired_count  = 3
+min_capacity   = 2
+max_capacity    = 10
+backend_cpu    = 1024
+backend_memory = 2048
+frontend_cpu   = 512
+frontend_memory = 1024

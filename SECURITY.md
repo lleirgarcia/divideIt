@@ -54,7 +54,7 @@ When reporting a security vulnerability, please include:
 
 ### File Upload
 
-- File size limits are enforced (500MB default)
+- File size limits are enforced (1GB default)
 - File type validation is performed
 - Uploaded files are stored in a secure location
 - Processed files are cleaned up after a period

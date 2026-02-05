@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
+import { StructuredData } from '@/components/StructuredData';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' });
@@ -63,6 +64,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#0284c7" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+        <StructuredData />
       </head>
       <body className={inter.className}>
         {children}

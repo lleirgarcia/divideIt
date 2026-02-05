@@ -16,7 +16,7 @@ info:
     - Upload endpoint: 10 requests per hour per IP
     
     ## File Size Limits
-    - Maximum file size: 500MB
+    - Maximum file size: 1GB
     - Supported formats: MP4, MOV, AVI
   version: 1.0.0
   contact:
@@ -86,7 +86,7 @@ paths:
                 video:
                   type: string
                   format: binary
-                  description: Video file (MP4, MOV, or AVI format, max 500MB)
+                  description: Video file (MP4, MOV, or AVI format, max 1GB)
                 segmentCount:
                   type: integer
                   minimum: 1

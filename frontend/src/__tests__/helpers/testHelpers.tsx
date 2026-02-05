@@ -30,10 +30,12 @@ export const createMockSegments = (count: number = 5) => {
 };
 
 /**
- * Reset video store before each test
+ * Reset video store before each test.
+ * No-op when store is mocked (e.g. getState or reset not available).
  */
 export const resetVideoStore = () => {
-  useVideoStore.getState().reset();
+  const state = useVideoStore?.getState?.();
+  if (state?.reset) state.reset();
 };
 
 /**

@@ -10,14 +10,17 @@ RUN apk update && apk upgrade && \
 FROM base AS deps
 WORKDIR /app
 
+ENV NPM_CONFIG_FUND=false NPM_CONFIG_AUDIT=false
 COPY package.json package-lock.json* ./
-RUN npm ci && npm cache clean --force
+RUN npm install
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Next.js expects public dir; create if missing
+RUN mkdir -p public
 
 # Set build-time environment variables
 ARG NEXT_PUBLIC_API_URL
@@ -30,7 +33,7 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3050
 ENV HOSTNAME="0.0.0.0"
 
 # Create non-root user
@@ -47,10 +50,10 @@ RUN chown -R nextjs:nodejs /app
 
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 3050
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:3050/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
 
 CMD ["node", "server.js"]
