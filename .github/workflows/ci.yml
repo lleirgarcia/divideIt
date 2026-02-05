@@ -13,13 +13,11 @@ jobs:
   backend-test:
     runs-on: ubuntu-latest
     
-    services:
-      ffmpeg:
-        image: jrottenberg/ffmpeg:latest
-        options: --health-cmd="ffmpeg -version" --health-interval=10s --health-timeout=5s --health-retries=3
-    
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -107,13 +105,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend-test, frontend-test]
     
-    services:
-      ffmpeg:
-        image: jrottenberg/ffmpeg:latest
-        options: --health-cmd="ffmpeg -version" --health-interval=10s --health-timeout=5s --health-retries=3
-    
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
