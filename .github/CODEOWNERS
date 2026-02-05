@@ -3,26 +3,26 @@
 # GitHub will automatically request reviews from these owners when PRs touch their areas
 
 # Global owners (all files)
-* @your-username
+* @lleirgarcia
 
 # Backend
-/backend/ @your-username
+/backend/ @lleirgarcia
 
 # Frontend
-/frontend/ @your-username
+/frontend/ @lleirgarcia
 
 # Documentation
-*.md @your-username
-/docs/ @your-username
+*.md @lleirgarcia
+/docs/ @lleirgarcia
 
 # CI/CD
-/.github/ @your-username
+/.github/ @lleirgarcia
 
 # Docker
-/docker-compose.yml @your-username
-/Dockerfile @your-username
-/*/Dockerfile @your-username
+/docker-compose.yml @lleirgarcia
+/Dockerfile @lleirgarcia
+/*/Dockerfile @lleirgarcia
 
 # Configuration files
-/.gitignore @your-username
-/.cursorrules @your-username
+/.gitignore @lleirgarcia
+/.cursorrules @lleirgarcia
