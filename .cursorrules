@@ -1,0 +1,27 @@
+# Cursor Rules for divideIt
+
+## Project Context
+
+A web project where uplading a video file -mov or mp4 mainly, can short the video in different parts, in a random way without AI, for the purpose to upload it to for reels, tiktok or youtube shorts.
+
+## Available Specialized Agents
+
+- 🐙 GitHub Setup Agent: Sets up GitHub repository, .gitignore, and initial commit structure
+- ⚙️ Backend Engineer Agent: Specializes in backend architecture, APIs, databases, and server setup
+- 🎨 Frontend Engineer Agent: Specializes in modern frontend frameworks, UI/UX, and responsive design
+- 🚀 Full-Stack Engineer Agent: Handles both frontend and backend with full integration
+- 🔧 DevOps Agent: Sets up CI/CD, Docker, monitoring, and infrastructure
+- 📚 Documentation Agent: Creates comprehensive documentation, API docs, and guides
+- 🧪 Testing Agent: Sets up comprehensive testing suite (unit, integration, e2e)
+
+When working on tasks related to these domains, reference the agent files in `.cursor/agents/` for detailed instructions.
+
+
+## General Guidelines
+
+- Write clean, maintainable, and well-documented code
+- Follow best practices for the chosen tech stack
+- Ensure code is production-ready
+- Add appropriate error handling and validation
+- Include tests where applicable
+- Keep the codebase organized and modular

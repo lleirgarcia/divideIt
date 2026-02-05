@@ -1,0 +1,28 @@
+# Code Owners
+# This file defines who owns different parts of the codebase
+# GitHub will automatically request reviews from these owners when PRs touch their areas
+
+# Global owners (all files)
+* @your-username
+
+# Backend
+/backend/ @your-username
+
+# Frontend
+/frontend/ @your-username
+
+# Documentation
+*.md @your-username
+/docs/ @your-username
+
+# CI/CD
+/.github/ @your-username
+
+# Docker
+/docker-compose.yml @your-username
+/Dockerfile @your-username
+/*/Dockerfile @your-username
+
+# Configuration files
+/.gitignore @your-username
+/.cursorrules @your-username
