@@ -14,7 +14,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3051
-      - FRONTEND_URL=http://127.0.0.1:${FRONTEND_PORT:-18080}
+      - FRONTEND_URL=${DIVIDEIT_PUBLIC_URL:-http://127.0.0.1:18080}
       - LOG_LEVEL=info
       # Google Drive: valores desde .env en la raíz o export (no poner secretos aquí)
       - GOOGLE_DRIVE_CLIENT_ID=${GOOGLE_DRIVE_CLIENT_ID}
@@ -40,13 +40,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://127.0.0.1:${BACKEND_PORT:-18081}
+        # Con nombre (divideit.local): DIVIDEIT_PUBLIC_URL=http://divideit.local en .env y rebuild
+        NEXT_PUBLIC_API_URL: ${DIVIDEIT_PUBLIC_URL:-http://127.0.0.1:18081}
     container_name: divideit-frontend-internal
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-18080}:3050"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://127.0.0.1:${BACKEND_PORT:-18081}
+      - NEXT_PUBLIC_API_URL=${DIVIDEIT_PUBLIC_URL:-http://127.0.0.1:18081}
     depends_on:
       backend:
         condition: service_healthy
