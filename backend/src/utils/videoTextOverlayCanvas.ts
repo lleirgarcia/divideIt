@@ -147,11 +147,11 @@ export async function generateSubtitleCueImage(
     {
       text,
       position: 'bottom',
-      fontSize: 16,
+      fontSize: 28,
       fontColor: 'white',
       backgroundColor: 'black',
       backgroundColorOpacity: 0.75,
-      padding: 8,
+      padding: 12,
       fontWeight: 'normal',
     },
     outputPath,

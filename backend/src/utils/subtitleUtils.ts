@@ -8,11 +8,6 @@ export interface SubtitleSegment {
   text: string;
 }
 
-export interface SubtitleOptions {
-  /** If false, use segments as-is (word-level). If true, merge words into phrases. Default true. */
-  merge?: boolean;
-}
-
 /**
  * Format seconds as SRT timestamp: HH:MM:SS,mmm
  */
@@ -93,17 +88,12 @@ export function mergeSubtitleSegments(
   return merged;
 }
 
-function segmentsForOutput(segments: SubtitleSegment[], options?: SubtitleOptions): SubtitleSegment[] {
-  const use = segments.filter((s) => (s.text ?? '').trim().length > 0);
-  return options?.merge === false ? use : mergeSubtitleSegments(use);
-}
-
 /**
  * Convert segments to SRT content.
  */
-export function segmentsToSrt(segments: SubtitleSegment[], options?: SubtitleOptions): string {
-  const list = segmentsForOutput(segments, options);
-  return list
+export function segmentsToSrt(segments: SubtitleSegment[]): string {
+  const merged = mergeSubtitleSegments(segments);
+  return merged
     .map(
       (s, i) =>
         `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(s.end)}\n${s.text.trim()}\n`
@@ -114,10 +104,10 @@ export function segmentsToSrt(segments: SubtitleSegment[], options?: SubtitleOpt
 /**
  * Convert segments to WebVTT content.
  */
-export function segmentsToVtt(segments: SubtitleSegment[], options?: SubtitleOptions): string {
-  const list = segmentsForOutput(segments, options);
+export function segmentsToVtt(segments: SubtitleSegment[]): string {
+  const merged = mergeSubtitleSegments(segments);
   const header = 'WEBVTT\n\n';
-  const body = list
+  const body = merged
     .map(
       (s) =>
         `${formatVttTime(s.start)} --> ${formatVttTime(s.end)}\n${s.text.trim()}\n`
@@ -141,20 +131,20 @@ function formatAssTime(seconds: number): string {
  * Convert segments to ASS file content (for subtitles filter with full style control).
  * Positioned at bottom center (Alignment=2, MarginV) for the red-zone area.
  */
-export function segmentsToAss(segments: SubtitleSegment[], options?: SubtitleOptions): string {
-  const list = segmentsForOutput(segments, options);
+export function segmentsToAss(segments: SubtitleSegment[]): string {
+  const merged = mergeSubtitleSegments(segments);
   const header = `[Script Info]
 Title: divideIt subtitles
 ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,18,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,80,1
+Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,80,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
-  const lines = list.map((s) => {
+  const lines = merged.map((s) => {
     const text = s.text.trim().replace(/\n/g, '\\N').replace(/\r/g, '');
     return `Dialogue: 0,${formatAssTime(s.start)},${formatAssTime(s.end)},Default,,0,0,0,,${text}`;
   });

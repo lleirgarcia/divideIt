@@ -1,6 +1,5 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
-import os from 'os';
 import fs from 'fs/promises';
 import { logger } from './logger';
 import { parseSrt, segmentsToAss } from './subtitleUtils';
@@ -34,7 +33,7 @@ async function burnWithDrawtext(
     const start = Number(s.start).toFixed(3);
     const end = Number(s.end).toFixed(3);
     const text = escapeDrawtext(s.text.trim());
-    return `drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-180:fontsize=20:fontcolor=white:borderw=1:bordercolor=black@0.9:box=1:boxcolor=black@0.75:boxborderw=8`;
+    return `drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-180:fontsize=32:fontcolor=white:borderw=2:bordercolor=black@0.9:box=1:boxcolor=black@0.75:boxborderw=12`;
   });
   const filterStr = filterParts.join(',');
 
@@ -178,12 +177,12 @@ export async function burnSubtitlesIntoVideo(
 
   const tempOutputPath = absoluteVideoPath.replace(/\.mp4$/, '_with_subs.mp4');
 
-  /** Burn with subtitles filter (libass). subPath must be a path FFmpeg can read (e.g. /tmp/file.ass). */
+  /** Try burning with subtitles filter (libass) using the given subtitle file path */
   const trySubtitlesFilterWithFile = (subPath: string, label: string): Promise<string | null> =>
     new Promise((resolve) => {
-      const q = (p: string) => p.replace(/\\/g, '/').replace(/'/g, "'\\''");
+      const escaped = subPath.replace(/\\/g, '/').replace(/'/g, "'\\''");
       ffmpeg(absoluteVideoPath)
-        .videoFilters([`subtitles='${q(subPath)}'`])
+        .videoFilters([`subtitles='${escaped}'`])
         .outputOptions([
           '-c:v libx264',
           '-preset fast',
@@ -221,45 +220,24 @@ export async function burnSubtitlesIntoVideo(
         .run();
     });
 
-  // Copy subtitle file to /tmp with a simple path so libass parses per-cue timing correctly
-  const copyToTmp = async (sourcePath: string, ext: string): Promise<string> => {
-    const tmpPath = path.join(os.tmpdir(), `divideit_subs_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
-    await fs.copyFile(sourcePath, tmpPath);
-    return tmpPath;
-  };
-
   // 1) Prefer ASS (we control position: bottom center, MarginV=80)
   const assPath = absoluteVideoPath.replace(/\.mp4$/, '_temp_subs.ass');
   try {
     await fs.writeFile(assPath, segmentsToAss(segments), 'utf-8');
-    const tmpAss = await copyToTmp(assPath, '.ass');
-    try {
-      const result = await trySubtitlesFilterWithFile(tmpAss, 'libass+ASS');
-      if (result !== null) {
-        logger.info('Subtitles burned with ASS + libass');
-        return result;
-      }
-    } finally {
-      await fs.unlink(tmpAss).catch(() => {});
+    const result = await trySubtitlesFilterWithFile(assPath, 'libass+ASS');
+    await fs.unlink(assPath).catch(() => {});
+    if (result !== null) {
+      logger.info('Subtitles burned with ASS + libass');
+      return result;
     }
   } catch (e) {
     logger.warn(`ASS burn failed: ${e}`);
-  } finally {
     await fs.unlink(assPath).catch(() => {});
   }
 
-  // 2) Try SRT with subtitles filter (via /tmp so path is simple)
-  try {
-    const tmpSrt = await copyToTmp(absoluteSrtPath, '.srt');
-    try {
-      const resultSrt = await trySubtitlesFilterWithFile(tmpSrt, 'libass+SRT');
-      if (resultSrt !== null) return resultSrt;
-    } finally {
-      await fs.unlink(tmpSrt).catch(() => {});
-    }
-  } catch (e) {
-    logger.warn(`SRT copy to /tmp failed: ${e}`);
-  }
+  // 2) Try SRT with subtitles filter
+  const resultSrt = await trySubtitlesFilterWithFile(absoluteSrtPath, 'libass+SRT');
+  if (resultSrt !== null) return resultSrt;
 
   // 3) Fallback: drawtext (no libass)
   logger.info('Trying drawtext fallback for subtitles');
