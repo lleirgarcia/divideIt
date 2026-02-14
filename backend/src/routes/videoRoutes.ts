@@ -13,6 +13,7 @@ import { createError } from '../middleware/errorHandler';
 import { transcriptionService } from '../services/transcriptionService';
 import { summarizationService } from '../services/summarizationService';
 import { addTextOverlayToVideo } from '../utils/videoTextOverlayCanvas';
+import { addGameOverlayToVideo } from '../utils/addGameOverlayToVideo';
 import { mergeSubtitleSegments, formatSegmentsToSrtRaw, formatSegmentsToVttRaw } from '../utils/subtitleUtils';
 import { burnSubtitlesIntoVideo } from '../utils/subtitleBurner';
 import { alignSubtitleSegmentsToVideo, trimSegmentsToSoundOnly, addSilenceSegments } from '../utils/audioSyncUtils';
@@ -1000,6 +1001,75 @@ router.post('/add-title/:filename', async (req: Request, res: Response, next) =>
         videoWithTitle: filename,
         title: titleText,
         message: 'Title overlay added successfully. Original video has been updated.'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Add space-invaders game overlay to a video segment (nave vs marcianos, never wins).
+ * Overlay is placed at bottom-right and loops for the full duration.
+ * Requires running backend/scripts/generateSpaceInvadersVideo.ts once to create assets/space_invaders_loop.mp4.
+ *
+ * @route POST /api/videos/add-game-overlay/:filename
+ * @param {string} filename - Video filename (e.g., 'segment_1_uuid.mp4')
+ * @param {string} [videoId] - Video ID (optional, will search in processed/ if not provided)
+ */
+router.post('/add-game-overlay/:filename', async (req: Request, res: Response, next) => {
+  try {
+    const filename = req.params.filename;
+    const videoId = req.body.videoId || req.query.videoId;
+
+    if (!filename.endsWith('.mp4')) {
+      throw createError('Filename must be a .mp4 file', 400);
+    }
+
+    const processedDir = path.join(process.cwd(), 'processed');
+    let videoPath: string | undefined;
+
+    if (videoId) {
+      videoPath = path.join(processedDir, videoId as string, filename);
+    } else {
+      try {
+        const dirs = await fs.readdir(processedDir);
+        for (const dir of dirs) {
+          const testPath = path.join(processedDir, dir, filename);
+          try {
+            await fs.access(testPath);
+            videoPath = testPath;
+            break;
+          } catch {
+            // continue
+          }
+        }
+      } catch {
+        // processed dir missing
+      }
+      if (!videoPath) {
+        throw createError('Video file not found. Provide videoId or ensure file exists in processed/', 404);
+      }
+    }
+
+    try {
+      await fs.access(videoPath);
+    } catch {
+      throw createError('Video file not found', 404);
+    }
+
+    const absolutePath = path.resolve(videoPath);
+    const tempOut = absolutePath.replace(/\.mp4$/, '_game_temp.mp4');
+    await addGameOverlayToVideo(absolutePath, tempOut);
+    await fs.rename(tempOut, absolutePath);
+
+    logger.info(`Game overlay added to video: ${filename}`);
+
+    res.json({
+      success: true,
+      data: {
+        video: filename,
+        message: 'Space-invaders game overlay added (bottom-right). Original video has been updated.'
       }
     });
   } catch (error) {

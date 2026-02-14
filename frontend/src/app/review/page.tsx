@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { DarkModeToggle } from '@/components/ui/DarkModeToggle';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AttentionLoop } from '@/components/AttentionLoop';
 import toast from 'react-hot-toast';
 
 function formatTime(seconds: number): string {
@@ -54,6 +55,7 @@ function SegmentCard({
               preload="metadata"
             />
           </div>
+          <AttentionLoop />
           <a
             href={videoSrc}
             download={`segment_${segment.segmentNumber}.mp4`}

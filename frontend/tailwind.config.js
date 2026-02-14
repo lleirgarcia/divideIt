@@ -25,6 +25,9 @@ module.exports = {
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
+        'attention-progress': 'attentionProgress 7s ease-in-out infinite',
+        'attention-dots': 'attentionDots 2.4s ease-in-out infinite',
+        'attention-glow': 'attentionGlow 3.5s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -34,6 +37,24 @@ module.exports = {
         slideUp: {
           '0%': { transform: 'translateY(10px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        // Progress bar fills to ~96%, holds, then resets — never completes (attention loop)
+        attentionProgress: {
+          '0%': { width: '0%' },
+          '65%': { width: '96%' },
+          '80%': { width: '96%' },
+          '92%': { width: '0%' },
+          '100%': { width: '0%' },
+        },
+        // Subtle "..." hint that something might appear
+        attentionDots: {
+          '0%, 100%': { opacity: '0.35' },
+          '50%': { opacity: '0.9' },
+        },
+        // Soft glow that builds and fades (anticipation, no payoff)
+        attentionGlow: {
+          '0%, 100%': { opacity: '0.15', transform: 'scale(1)' },
+          '50%': { opacity: '0.5', transform: 'scale(1.02)' },
         },
       },
     },

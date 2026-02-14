@@ -4,6 +4,7 @@ import { VideoUploader } from '@/components/VideoUploader';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { SegmentsList } from '@/components/SegmentsList';
 import { GoogleDriveUpload } from '@/components/GoogleDriveUpload';
+import { AttentionLoop } from '@/components/AttentionLoop';
 import { DarkModeToggle } from '@/components/ui/DarkModeToggle';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ProcessingLoader } from '@/components/ProcessingLoader';
@@ -42,6 +43,7 @@ export default function Home() {
                     Original Video
                   </h2>
                   <VideoPlayer />
+                  <AttentionLoop />
                 </section>
 
                 {(segments.length > 0 || isProcessing) && (

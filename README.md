@@ -14,6 +14,8 @@ A web application for splitting videos into random segments, perfect for creatin
 - ✨ **Summary Files**: Matching `_summary.txt` files are generated for quick content overview
 - 📱 **Social Media Content**: Automatic generation of TikTok/Instagram Reels descriptions and titles
 - 🎬 **Title Overlay**: Titles are automatically overlaid on videos in the top black bar area
+- 👀 **Attention-Loop Animation**: A subtle animation below the video that builds anticipation (progress-almost-complete style) with no payoff, keeping viewers engaged
+- 🚀 **Space-Invaders Overlay**: Optional 2D game overlay (nave vs marcianos) that can be added to any segment; the ship never finishes all aliens (attention loop). Add via API or re-run generator script.
 - 📄 **Speech-Synced Subtitles**: Each segment gets SRT and VTT subtitle files (and optional burned-in subtitles) aligned with what is being said
 - ☁️ **Google Drive Integration**: Upload and share video segments directly to Google Drive
 - 🎨 **Modern UI**: Beautiful, responsive interface built with Next.js and Tailwind CSS
