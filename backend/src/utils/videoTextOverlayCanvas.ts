@@ -165,7 +165,7 @@ export async function generateSubtitleCueImage(
   return generateSubtitleCueImageWithPrevious(text, previousText.trim(), outputPath, videoWidth, videoHeight);
 }
 
-/** Gap (px) between previous and current subtitle lines (previous line lower, tight). */
+/** Gap (px) between previous and current subtitle lines (small separation). */
 const SUB_PREV_LINE_GAP = 4;
 
 /**

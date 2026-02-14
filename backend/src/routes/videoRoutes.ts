@@ -710,7 +710,7 @@ router.post('/summarize/:filename', async (req: Request, res: Response, next) =>
     const summaryPath = txtFilePath.replace(/\.txt$/, '_summary.txt');
     await summarizationService.summarizeFile(txtFilePath, summaryPath, {
       maxLength: options.maxLength || 100,
-      language: options.language,
+      language: options.language || 'es',
       style: options.style || 'concise'
     });
 
@@ -821,7 +821,7 @@ router.post('/social-media/:filename', async (req: Request, res: Response, next)
       throw createError('maxLength must be between 50 and 300', 400);
     }
 
-    const language = req.body.language || req.query.language;
+    const language = (req.body.language || req.query.language || 'es') as string;
 
     // Generate social media content
     const result = await summarizationService.generateSocialMediaContentFromFile(txtFilePath, {

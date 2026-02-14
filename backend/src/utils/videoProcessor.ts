@@ -259,7 +259,8 @@ export const splitVideo = async (
                 const summaryPath = outputPath.replace(/\.mp4$/, '_summary.txt');
                 await summarizationService.summarizeFile(txtPath, summaryPath, {
                   maxLength: 100,
-                  style: 'concise'
+                  style: 'concise',
+                  language: 'es'
                 });
                 console.log(`   ✅ Summary saved: ${summaryPath}`);
                 logger.info(`Summary saved for segment ${i + 1}: ${summaryPath}`);
@@ -269,7 +270,7 @@ export const splitVideo = async (
                   console.log(`   📱 Generating social media content for segment ${i + 1}...`);
                   const socialContent = await summarizationService.generateSocialMediaContentFromFile(txtPath, {
                     maxLength: 150,
-                    language: 'en' // Always generate in English
+                    language: 'es'
                   });
                   console.log(`   ✅ Social media content saved:`);
                   console.log(`      - Description: ${path.basename(socialContent.descriptionPath)}`);

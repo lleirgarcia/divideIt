@@ -189,7 +189,8 @@ export class VideoService {
             const summaryPath = outputPath.replace(/\.mp4$/, '_summary.txt');
             await summarizationService.summarizeFile(txtPath, summaryPath, {
               maxLength: 100,
-              style: 'concise'
+              style: 'concise',
+              language: 'es'
             });
             logger.info(`Summary saved for segment ${i + 1}: ${summaryPath}`);
             
@@ -198,7 +199,7 @@ export class VideoService {
               logger.info(`Generating social media content for segment ${i + 1}...`);
               const socialContent = await summarizationService.generateSocialMediaContentFromFile(txtPath, {
                 maxLength: 150,
-                language: 'en' // Always generate in English
+                language: 'es'
               });
               logger.info(`Social media content saved for segment ${i + 1}: ${socialContent.descriptionPath} and ${socialContent.titlePath}`);
               

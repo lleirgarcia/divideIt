@@ -211,8 +211,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return header + lines.join('\n');
 }
 
-/** Main subtitle line: MarginV=65 (~35px tall). Previous line lower, just above current => MarginV=78. */
-const ASS_PREVIOUS_MARGIN_V = 78;
+/** Main subtitle line: MarginV=65. Previous line with small gap (~15px) above => MarginV=82. */
+const ASS_PREVIOUS_MARGIN_V = 82;
 const ASS_PREVIOUS_FONTSIZE = 5;
 /** ASS PrimaryColour for previous line: &HAABBGGRR — 80 = ~50% transparent white. */
 const ASS_PREVIOUS_COLOUR = '&H80FFFFFF';

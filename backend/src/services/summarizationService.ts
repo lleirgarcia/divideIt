@@ -46,18 +46,20 @@ export class SummarizationService {
 
     const {
       maxLength = 100,
-      language: _language = 'en',
+      language = 'es',
       style = 'concise'
     } = options;
+
+    const langInstruction = language === 'es' ? 'Spanish (español)' : language === 'en' ? 'English' : `language code ${language}`;
 
     // Build prompt based on style
     let prompt = '';
     switch (style) {
       case 'bullet-points':
-        prompt = `Summarize the following text in ${maxLength} words or less as bullet points:\n\n${text}`;
+        prompt = `Summarize the following text in ${maxLength} words or less as bullet points. Respond in ${langInstruction} only.\n\n${text}`;
         break;
       case 'detailed':
-        prompt = `Provide a detailed summary of the following text in approximately ${maxLength} words:\n\n${text}`;
+        prompt = `Provide a detailed summary of the following text in approximately ${maxLength} words. Respond in ${langInstruction} only.\n\n${text}`;
         break;
       case 'social-media':
         prompt = `Create an engaging description for a TikTok or Instagram Reel based on this video transcription. The description should be:
@@ -65,13 +67,13 @@ export class SummarizationService {
 - Include relevant hashtags suggestions
 - Be optimized for social media (catchy, clear, and action-oriented)
 - Maximum ${maxLength} words
-- Written in English only
+- Written in ${langInstruction} only
 
 Video transcription:\n\n${text}`;
         break;
       case 'concise':
       default:
-        prompt = `Summarize the following text concisely in ${maxLength} words or less:\n\n${text}`;
+        prompt = `Summarize the following text concisely in ${maxLength} words or less. Respond in ${langInstruction} only.\n\n${text}`;
         break;
     }
 
@@ -83,7 +85,7 @@ Video transcription:\n\n${text}`;
           messages: [
             {
               role: 'system',
-              content: `You are a helpful assistant that creates clear and accurate summaries. Always respond in English only, regardless of the input language.`
+              content: `You are a helpful assistant that creates clear and accurate summaries. Always respond in ${langInstruction} only, regardless of the input language.`
             },
             {
               role: 'user',
@@ -165,8 +167,10 @@ Video transcription:\n\n${text}`;
 
     const {
       maxLength = 150,
-      language: _lang = 'en'
+      language = 'es'
     } = options;
+
+    const langInstruction = language === 'es' ? 'Spanish (español)' : language === 'en' ? 'English' : `language code ${language}`;
 
     try {
       // Generate description for social media
@@ -177,7 +181,7 @@ Video transcription:\n\n${text}`;
           messages: [
             {
               role: 'system',
-              content: `You are a social media content creator expert. Create engaging descriptions for TikTok and Instagram Reels that hook viewers, include relevant hashtag suggestions, and are optimized for engagement. Always respond in English only, regardless of the input language.`
+              content: `You are a social media content creator expert. Create engaging descriptions for TikTok and Instagram Reels that hook viewers, include relevant hashtag suggestions, and are optimized for engagement. Always respond in ${langInstruction} only, regardless of the input language.`
             },
             {
               role: 'user',
@@ -186,7 +190,7 @@ Video transcription:\n\n${text}`;
 - Include 3-5 relevant hashtag suggestions at the end
 - Be optimized for social media (catchy, clear, and action-oriented)
 - Maximum ${maxLength} words
-- Written in English only
+- Written in ${langInstruction} only
 
 Video transcription:\n\n${text}`
             }
@@ -216,11 +220,11 @@ Video transcription:\n\n${text}`
           messages: [
             {
               role: 'system',
-              content: `You are a social media expert. Create catchy, short titles (exactly 5-7 words) for TikTok and Instagram Reels. Titles should be attention-grabbing and summarize the video content. Always respond in English only, regardless of the input language. Respond ONLY with the title, no additional text.`
+              content: `You are a social media expert. Create catchy, short titles (exactly 5-7 words) for TikTok and Instagram Reels. Titles should be attention-grabbing and summarize the video content. Always respond in ${langInstruction} only. Respond ONLY with the title, no additional text.`
             },
             {
               role: 'user',
-              content: `Based on this video transcription, create a catchy title of exactly 5-7 words in English for a TikTok/Instagram Reel. The title should be attention-grabbing and summarize the main point. Respond ONLY with the title in English, nothing else.\n\nVideo transcription:\n\n${text}`
+              content: `Based on this video transcription, create a catchy title of exactly 5-7 words in ${langInstruction} for a TikTok/Instagram Reel. The title should be attention-grabbing and summarize the main point. Respond ONLY with the title, nothing else.\n\nVideo transcription:\n\n${text}`
             }
           ],
           max_tokens: 30,
