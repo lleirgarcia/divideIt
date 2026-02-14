@@ -6,9 +6,9 @@ import { logger } from '../utils/logger';
 import { transcriptionService } from './transcriptionService';
 import { summarizationService } from './summarizationService';
 import { addTitleToVideo } from '../utils/videoTextOverlayCanvas';
-import { segmentsToSrt, segmentsToVtt } from '../utils/subtitleUtils';
+import { mergeSubtitleSegments, formatSegmentsToSrtRaw, formatSegmentsToVttRaw } from '../utils/subtitleUtils';
 import { burnSubtitlesIntoVideo } from '../utils/subtitleBurner';
-import { alignSubtitleSegmentsToVideo } from '../utils/audioSyncUtils';
+import { alignSubtitleSegmentsToVideo, trimSegmentsToSoundOnly, addSilenceSegments } from '../utils/audioSyncUtils';
 
 export interface VideoMetadata {
   duration: number;
@@ -164,13 +164,16 @@ export class VideoService {
         
         logger.info(`Transcription saved for segment ${i + 1}: ${txtPath}`);
 
-        // Create subtitles (SRT/VTT) aligned to when sound starts, then burn into MP4
+        // Align, trim to speech only, merge 5 words, add silence cues (full timeline), burn only text
         if (transcription.segments?.length) {
           try {
-            const alignedSegments = await alignSubtitleSegmentsToVideo(transcription.segments, outputPath);
+            const aligned = await alignSubtitleSegmentsToVideo(transcription.segments, outputPath);
+            const trimmed = await trimSegmentsToSoundOnly(aligned, outputPath);
+            const merged = mergeSubtitleSegments(trimmed);
+            const withSilence = await addSilenceSegments(merged, outputPath);
             const srtPath = outputPath.replace(/\.mp4$/, '.srt');
-            await fs.writeFile(srtPath, segmentsToSrt(alignedSegments), 'utf-8');
-            await fs.writeFile(outputPath.replace(/\.mp4$/, '.vtt'), segmentsToVtt(alignedSegments), 'utf-8');
+            await fs.writeFile(srtPath, formatSegmentsToSrtRaw(withSilence), 'utf-8');
+            await fs.writeFile(outputPath.replace(/\.mp4$/, '.vtt'), formatSegmentsToVttRaw(withSilence), 'utf-8');
             logger.info(`Subtitles saved for segment ${i + 1}: ${srtPath}`);
             await burnSubtitlesIntoVideo(outputPath, srtPath);
             logger.info(`MP4 created with embedded subtitles for segment ${i + 1}`);

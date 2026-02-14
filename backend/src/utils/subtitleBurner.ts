@@ -192,11 +192,12 @@ export async function burnSubtitlesIntoVideo(
   }
 
   const segments = parseSrt(srtContent);
-  if (segments.length === 0) {
-    logger.warn(`No subtitle cues found in ${srtPath}`);
+  const speechOnly = segments.filter((s) => s.text.trim().length > 0);
+  if (speechOnly.length === 0) {
+    logger.warn(`No subtitle cues with text found in ${srtPath}`);
     return videoPath;
   }
-  const segmentsForBurn = segmentsWithMinDuration(segments, MIN_CUE_DURATION_BURN);
+  const segmentsForBurn = segmentsWithMinDuration(speechOnly, MIN_CUE_DURATION_BURN);
 
   const tempOutputPath = absoluteVideoPath.replace(/\.mp4$/, '_with_subs.mp4');
 

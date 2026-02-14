@@ -135,11 +135,18 @@ export function mergeSubtitleSegments(
 }
 
 /**
- * Convert segments to SRT content.
+ * Convert segments to SRT content (with merge to 5 words per cue).
  */
 export function segmentsToSrt(segments: SubtitleSegment[]): string {
   const merged = mergeSubtitleSegments(segments);
-  return merged
+  return formatSegmentsToSrtRaw(merged);
+}
+
+/**
+ * Format segments to SRT as-is (no merge). Use when segments already include silence cues (empty text).
+ */
+export function formatSegmentsToSrtRaw(segments: SubtitleSegment[]): string {
+  return segments
     .map(
       (s, i) =>
         `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(s.end)}\n${s.text.trim()}\n`
@@ -148,12 +155,19 @@ export function segmentsToSrt(segments: SubtitleSegment[]): string {
 }
 
 /**
- * Convert segments to WebVTT content.
+ * Convert segments to WebVTT content (with merge to 5 words per cue).
  */
 export function segmentsToVtt(segments: SubtitleSegment[]): string {
   const merged = mergeSubtitleSegments(segments);
+  return formatSegmentsToVttRaw(merged);
+}
+
+/**
+ * Format segments to WebVTT as-is (no merge). Use when segments already include silence cues (empty text).
+ */
+export function formatSegmentsToVttRaw(segments: SubtitleSegment[]): string {
   const header = 'WEBVTT\n\n';
-  const body = merged
+  const body = segments
     .map(
       (s) =>
         `${formatVttTime(s.start)} --> ${formatVttTime(s.end)}\n${s.text.trim()}\n`

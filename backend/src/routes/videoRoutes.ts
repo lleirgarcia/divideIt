@@ -13,9 +13,9 @@ import { createError } from '../middleware/errorHandler';
 import { transcriptionService } from '../services/transcriptionService';
 import { summarizationService } from '../services/summarizationService';
 import { addTextOverlayToVideo } from '../utils/videoTextOverlayCanvas';
-import { segmentsToSrt, segmentsToVtt } from '../utils/subtitleUtils';
+import { mergeSubtitleSegments, formatSegmentsToSrtRaw, formatSegmentsToVttRaw } from '../utils/subtitleUtils';
 import { burnSubtitlesIntoVideo } from '../utils/subtitleBurner';
-import { alignSubtitleSegmentsToVideo } from '../utils/audioSyncUtils';
+import { alignSubtitleSegmentsToVideo, trimSegmentsToSoundOnly, addSilenceSegments } from '../utils/audioSyncUtils';
 import fs from 'fs/promises';
 import { z } from 'zod';
 
@@ -1065,11 +1065,14 @@ router.post('/add-subtitles/:filename', async (req: Request, res: Response, next
       throw createError('No timestamped segments from transcription. Cannot generate subtitles.', 400);
     }
 
-    const alignedSegments = await alignSubtitleSegmentsToVideo(transcription.segments, videoPath);
+    const aligned = await alignSubtitleSegmentsToVideo(transcription.segments, videoPath);
+    const trimmed = await trimSegmentsToSoundOnly(aligned, videoPath);
+    const merged = mergeSubtitleSegments(trimmed);
+    const withSilence = await addSilenceSegments(merged, videoPath);
     const srtPath = videoPath.replace(/\.mp4$/, '.srt');
     const vttPath = videoPath.replace(/\.mp4$/, '.vtt');
-    await fs.writeFile(srtPath, segmentsToSrt(alignedSegments), 'utf-8');
-    await fs.writeFile(vttPath, segmentsToVtt(alignedSegments), 'utf-8');
+    await fs.writeFile(srtPath, formatSegmentsToSrtRaw(withSilence), 'utf-8');
+    await fs.writeFile(vttPath, formatSegmentsToVttRaw(withSilence), 'utf-8');
     logger.info(`Subtitles written: ${path.basename(srtPath)}, ${path.basename(vttPath)}`);
 
     await burnSubtitlesIntoVideo(videoPath, srtPath);

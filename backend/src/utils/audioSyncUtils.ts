@@ -12,33 +12,67 @@ import type { SubtitleSegment } from './subtitleUtils';
 /** Minimum offset (seconds) to apply; avoid tiny shifts that could be noise. */
 const MIN_OFFSET_SEC = 0.3;
 
+/** Silence detection filter; same params for first-sound and full intervals. */
+const SILENCE_OPTS = ['-af', 'silencedetect=n=-50dB:d=0.5', '-f', 'null'];
+
+function runSilencedetect(filePath: string): Promise<string> {
+  const absolutePath = path.resolve(filePath);
+  return new Promise((resolve, reject) => {
+    let stderr = '';
+    ffmpeg(absolutePath)
+      .outputOptions(SILENCE_OPTS)
+      .output('-')
+      .on('stderr', (line: string) => {
+        stderr += line + '\n';
+      })
+      .on('end', () => resolve(stderr))
+      .on('error', (err) => reject(err))
+      .run();
+  });
+}
+
 /**
  * Detect when the first sound (end of leading silence) occurs in a video/audio file.
  * Uses FFmpeg silencedetect: if there is leading silence 0..T, returns T; otherwise 0.
  */
 export function getFirstSoundTime(filePath: string): Promise<number> {
-  const absolutePath = path.resolve(filePath);
-  return new Promise((resolve) => {
-    let stderr = '';
-    ffmpeg(absolutePath)
-      .outputOptions([
-        '-af', 'silencedetect=n=-50dB:d=0.5',
-        '-f', 'null',
-      ])
-      .output('-')
-      .on('stderr', (line: string) => {
-        stderr += line + '\n';
-      })
-      .on('end', () => {
-        const firstSound = parseFirstSoundFromSilencedetect(stderr);
-        resolve(firstSound);
-      })
-      .on('error', (err) => {
-        logger.warn(`Silencedetect failed for ${path.basename(filePath)}: ${err.message}, assuming 0`);
-        resolve(0);
-      })
-      .run();
-  });
+  return runSilencedetect(filePath)
+    .then((stderr) => parseFirstSoundFromSilencedetect(stderr))
+    .catch((err) => {
+      logger.warn(`Silencedetect failed for ${path.basename(filePath)}: ${err.message}, assuming 0`);
+      return 0;
+    });
+}
+
+/**
+ * Get all silence intervals [start, end] in seconds. Used to trim subtitles so they only show during speech.
+ */
+export function getSilenceIntervals(filePath: string): Promise<Array<[number, number]>> {
+  return runSilencedetect(filePath)
+    .then((stderr) => parseAllSilenceIntervals(stderr))
+    .catch((err) => {
+      logger.warn(`Silencedetect failed for ${path.basename(filePath)}: ${err.message}`);
+      return [];
+    });
+}
+
+/**
+ * Parse full silencedetect output into ordered [start, end] pairs for each silence.
+ */
+function parseAllSilenceIntervals(stderr: string): Array<[number, number]> {
+  const pairs: Array<[number, number]> = [];
+  let lastStart: number | null = null;
+  const lines = stderr.split('\n');
+  for (const line of lines) {
+    const startMatch = line.match(/silence_start:\s*([\d.]+)/);
+    const endMatch = line.match(/silence_end:\s*([\d.]+)/);
+    if (startMatch) lastStart = parseFloat(startMatch[1]);
+    if (endMatch && lastStart !== null) {
+      pairs.push([lastStart, parseFloat(endMatch[1])]);
+      lastStart = null;
+    }
+  }
+  return pairs;
 }
 
 /**
@@ -140,4 +174,100 @@ function clampSegmentsToDuration(segments: SubtitleSegment[], duration: number):
       text: s.text,
     }))
     .filter((s) => s.end > s.start);
+}
+
+/** Minimum duration (seconds) for a cue after trimming to avoid flicker. */
+const MIN_CUE_DURATION = 0.2;
+
+/**
+ * Trim subtitle segments so they only appear during speech (not during silence).
+ * Each cue is trimmed to the part that overlaps "sound" (non-silence); if a cue spans
+ * speech-silence-speech we keep only the single longest speech part to avoid duplicating text.
+ * If a cue falls entirely in detected silence we keep it unchanged so we don't lose content.
+ */
+export async function trimSegmentsToSoundOnly(
+  segments: SubtitleSegment[],
+  videoPath: string
+): Promise<SubtitleSegment[]> {
+  if (!segments.length) return segments;
+  const absolutePath = path.resolve(videoPath);
+  const [silenceIntervals, duration] = await Promise.all([
+    getSilenceIntervals(absolutePath),
+    getVideoDuration(absolutePath).catch(() => 0),
+  ]);
+  if (!silenceIntervals.length) return clampSegmentsToDuration(segments, duration);
+
+  const soundIntervals = buildSoundIntervals(silenceIntervals, duration);
+  const result: SubtitleSegment[] = [];
+  for (const seg of segments) {
+    const subRanges = intersect(seg.start, seg.end, soundIntervals);
+    if (subRanges.length === 0) {
+      result.push(seg);
+      continue;
+    }
+    const best = subRanges.reduce((a, b) => (b[1] - b[0] > a[1] - a[0] ? b : a));
+    if (best[1] - best[0] >= MIN_CUE_DURATION) {
+      result.push({ start: best[0], end: best[1], text: seg.text });
+    } else {
+      result.push(seg);
+    }
+  }
+  logger.info(`Subtitle trim: ${segments.length} cues (only during speech, no duplicate text)`);
+  return result;
+}
+
+/** Build [start, end] intervals where there is sound (complement of silence in [0, duration]). */
+function buildSoundIntervals(silence: Array<[number, number]>, duration: number): Array<[number, number]> {
+  const sound: Array<[number, number]> = [];
+  let t = 0;
+  const sorted = [...silence].sort((a, b) => a[0] - b[0]);
+  for (const [s, e] of sorted) {
+    if (t < s) sound.push([t, Math.min(s, duration)]);
+    t = Math.max(t, e);
+  }
+  if (t < duration) sound.push([t, duration]);
+  return sound;
+}
+
+/** Intersect [a, b] with sound intervals; return list of [start, end] sub-ranges. */
+function intersect(a: number, b: number, soundIntervals: Array<[number, number]>): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const [s, e] of soundIntervals) {
+    const start = Math.max(a, s);
+    const end = Math.min(b, e);
+    if (end > start) out.push([start, end]);
+  }
+  return out;
+}
+
+/** Minimum duration (seconds) for a silence cue in the SRT (avoid tiny gaps). */
+const MIN_SILENCE_CUE_DURATION = 0.3;
+
+/**
+ * Add silence segments (empty text) between speech segments so the SRT covers the full timeline.
+ * Speech segments keep their text; silence intervals become cues with empty text.
+ * When burned, only cues with text are shown, so the file defines every second (speech or silence).
+ */
+export async function addSilenceSegments(
+  speechSegments: SubtitleSegment[],
+  videoPath: string
+): Promise<SubtitleSegment[]> {
+  if (!speechSegments.length) return speechSegments;
+  const absolutePath = path.resolve(videoPath);
+  const [silenceIntervals, duration] = await Promise.all([
+    getSilenceIntervals(absolutePath),
+    getVideoDuration(absolutePath).catch(() => 0),
+  ]);
+  if (!duration || duration <= 0 || !silenceIntervals.length) return speechSegments;
+
+  const sortedSilence = [...silenceIntervals].sort((a, b) => a[0] - b[0]);
+  const silenceSegments: SubtitleSegment[] = [];
+  for (const [s, e] of sortedSilence) {
+    const start = Math.max(0, s);
+    const end = Math.min(duration, e);
+    if (end - start >= MIN_SILENCE_CUE_DURATION) silenceSegments.push({ start, end, text: '' });
+  }
+  const combined = [...speechSegments, ...silenceSegments].sort((a, b) => a.start - b.start);
+  logger.info(`SRT timeline: ${speechSegments.length} speech + ${silenceSegments.length} silence cues`);
+  return combined;
 }
