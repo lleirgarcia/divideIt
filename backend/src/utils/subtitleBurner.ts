@@ -39,9 +39,9 @@ function segmentsWithMinDuration(
   });
 }
 
-/** Main line y (from bottom). Previous line just above with small gap (~6px). */
+/** Main line y (from bottom). Previous line lower, just above main. */
 const DRAWTEXT_MAIN_Y = 165;
-const DRAWTEXT_PREV_Y = 196;
+const DRAWTEXT_PREV_Y = 178;
 const DRAWTEXT_MAIN_FONT = 14;
 const DRAWTEXT_PREV_FONT = 7;
 
