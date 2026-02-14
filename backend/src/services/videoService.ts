@@ -8,6 +8,7 @@ import { summarizationService } from './summarizationService';
 import { addTitleToVideo } from '../utils/videoTextOverlayCanvas';
 import { segmentsToSrt, segmentsToVtt } from '../utils/subtitleUtils';
 import { burnSubtitlesIntoVideo } from '../utils/subtitleBurner';
+import { alignSubtitleSegmentsToVideo } from '../utils/audioSyncUtils';
 
 export interface VideoMetadata {
   duration: number;
@@ -155,7 +156,7 @@ export class VideoService {
       // Transcribe the segment and save to .txt file
       try {
         logger.info(`Transcribing segment ${i + 1}...`);
-        const transcription = await transcriptionService.transcribe(outputPath, {});
+        const transcription = await transcriptionService.transcribe(outputPath, {}); // no language = original language, no translation
         
         // Create .txt file with same name as video
         const txtPath = outputPath.replace(/\.mp4$/, '.txt');
@@ -163,12 +164,13 @@ export class VideoService {
         
         logger.info(`Transcription saved for segment ${i + 1}: ${txtPath}`);
 
-        // Create subtitles (SRT/VTT) and burn them into the MP4 immediately
+        // Create subtitles (SRT/VTT) aligned to when sound starts, then burn into MP4
         if (transcription.segments?.length) {
           try {
+            const alignedSegments = await alignSubtitleSegmentsToVideo(transcription.segments, outputPath);
             const srtPath = outputPath.replace(/\.mp4$/, '.srt');
-            await fs.writeFile(srtPath, segmentsToSrt(transcription.segments), 'utf-8');
-            await fs.writeFile(outputPath.replace(/\.mp4$/, '.vtt'), segmentsToVtt(transcription.segments), 'utf-8');
+            await fs.writeFile(srtPath, segmentsToSrt(alignedSegments), 'utf-8');
+            await fs.writeFile(outputPath.replace(/\.mp4$/, '.vtt'), segmentsToVtt(alignedSegments), 'utf-8');
             logger.info(`Subtitles saved for segment ${i + 1}: ${srtPath}`);
             await burnSubtitlesIntoVideo(outputPath, srtPath);
             logger.info(`MP4 created with embedded subtitles for segment ${i + 1}`);

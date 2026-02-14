@@ -31,55 +31,101 @@ function formatVttTime(seconds: number): string {
 }
 
 /**
- * Merge word-level segments (e.g. from AssemblyAI/Deepgram) into phrase-level cues
- * for readable subtitles (roughly 1–2 lines, 3–5 seconds max per cue).
+ * Expand phrase-level segments into word-level by splitting text and interpolating time.
+ * Produces one cue per word (or short token) for karaoke-style / word-by-word subtitles.
+ */
+function expandToWordLevel(segments: SubtitleSegment[]): SubtitleSegment[] {
+  const result: SubtitleSegment[] = [];
+  const minCueDuration = 0.2;
+
+  for (const s of segments) {
+    const text = s.text.trim();
+    if (!text) continue;
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length === 0) continue;
+    if (words.length === 1) {
+      result.push({ start: s.start, end: s.end, text: words[0] });
+      continue;
+    }
+    const duration = s.end - s.start;
+    const step = duration / words.length;
+    for (let i = 0; i < words.length; i++) {
+      const start = s.start + i * step;
+      const end = i === words.length - 1 ? s.end : s.start + (i + 1) * step;
+      if (end - start >= minCueDuration) {
+        result.push({ start, end, text: words[i] });
+      } else {
+        const last = result[result.length - 1];
+        if (last && last.end - last.start < 2) {
+          last.end = end;
+          last.text = last.text + ' ' + words[i];
+        } else {
+          result.push({ start, end: start + minCueDuration, text: words[i] });
+        }
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Normalize segments to word-level: if any segment has multiple words, expand all to one word per segment (with interpolated times).
+ */
+function normalizeToWordLevel(segments: SubtitleSegment[]): SubtitleSegment[] {
+  const filtered = segments.filter((s) => s.text.trim().length > 0);
+  if (!filtered.length) return [];
+  const hasPhrases = filtered.some((s) => s.text.trim().split(/\s+/).length > 1);
+  if (!hasPhrases) return filtered;
+  return expandToWordLevel(filtered);
+}
+
+/**
+ * Merge word-level segments into cues of 5 words per cue (min and max 5 when possible).
+ * Always normalizes to word-level first, then merges. Only outputs a cue when we have at least minWordsPerCue words (except at the end).
  */
 export function mergeSubtitleSegments(
   segments: SubtitleSegment[],
-  options: { maxWordsPerCue?: number; maxDurationSec?: number; minDurationSec?: number } = {}
+  options: { maxWordsPerCue?: number; minWordsPerCue?: number; maxDurationSec?: number; minDurationSec?: number; maxGapSec?: number } = {}
 ): SubtitleSegment[] {
-  const { maxWordsPerCue = 10, maxDurationSec = 5, minDurationSec = 0.3 } = options;
+  const { maxWordsPerCue = 5, minWordsPerCue = 5, maxDurationSec = 5, minDurationSec = 0.2, maxGapSec = 1 } = options;
   if (!segments.length) return [];
 
-  const isWordLevel =
-    segments.length > 5 &&
-    segments.every((s) => s.end - s.start < 1.5 && (s.text?.split(/\s+/).length ?? 1) <= 2);
-  if (!isWordLevel) {
-    return segments.filter((s) => s.text.trim().length > 0);
-  }
+  const wordLevel = normalizeToWordLevel(segments);
+  if (!wordLevel.length) return [];
 
   const merged: SubtitleSegment[] = [];
   let acc: { start: number; end: number; words: string[] } = {
-    start: segments[0].start,
-    end: segments[0].end,
-    words: [segments[0].text.trim()].filter(Boolean),
+    start: wordLevel[0].start,
+    end: wordLevel[0].end,
+    words: [wordLevel[0].text.trim()].filter(Boolean),
   };
 
-  for (let i = 1; i < segments.length; i++) {
-    const seg = segments[i];
-    const wordCount = acc.words.length + (seg.text?.trim() ? seg.text.trim().split(/\s+/).length : 0);
+  for (let i = 1; i < wordLevel.length; i++) {
+    const seg = wordLevel[i];
+    const extraWords = seg.text?.trim() ? seg.text.trim().split(/\s+/).length : 0;
+    const wordCount = acc.words.length + extraWords;
     const duration = seg.end - acc.start;
+    const gap = seg.start - acc.end;
 
-    if (
-      wordCount <= maxWordsPerCue &&
-      duration <= maxDurationSec &&
-      seg.start - acc.end <= 0.5
-    ) {
+    if (wordCount <= maxWordsPerCue && duration <= maxDurationSec && gap <= maxGapSec) {
       acc.end = seg.end;
       if (seg.text?.trim()) acc.words.push(seg.text.trim());
     } else {
-      if (acc.words.length > 0 && acc.end - acc.start >= minDurationSec) {
+      if (acc.words.length >= minWordsPerCue && acc.end - acc.start >= minDurationSec) {
         merged.push({
           start: acc.start,
           end: acc.end,
           text: acc.words.join(' '),
         });
+        acc = {
+          start: seg.start,
+          end: seg.end,
+          words: seg.text?.trim() ? [seg.text.trim()] : [],
+        };
+      } else {
+        acc.end = seg.end;
+        if (seg.text?.trim()) acc.words.push(seg.text.trim());
       }
-      acc = {
-        start: seg.start,
-        end: seg.end,
-        words: seg.text?.trim() ? [seg.text.trim()] : [],
-      };
     }
   }
   if (acc.words.length > 0 && acc.end - acc.start >= minDurationSec) {
@@ -139,7 +185,7 @@ ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,80,1
+Style: Default,Arial,10,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,65,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

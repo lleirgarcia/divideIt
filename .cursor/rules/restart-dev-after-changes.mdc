@@ -1,0 +1,20 @@
+---
+description: Restart dev servers automatically after backend/frontend code changes
+alwaysApply: true
+---
+
+# Restart dev servers after code changes
+
+When you edit backend or frontend source code (e.g. `backend/src/**`, `frontend/src/**`), **restart the dev servers** so changes are applied and port conflicts (EADDRINUSE) are avoided.
+
+Do it without the user asking:
+
+1. Kill processes on ports 3051 (backend) and 3050 (frontend):
+   `lsof -ti :3051 2>/dev/null | xargs kill -9 2>/dev/null; lsof -ti :3050 2>/dev/null | xargs kill -9 2>/dev/null; sleep 2`
+2. Start dev from repo root in background:
+   `cd /path/to/divideIt && PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH" npm run dev`
+   (use `is_background: true`)
+
+Run the restart **after** you finish applying the code changes (same turn), so the user gets an updated server without having to ask.
+
+Exception: do not restart if you only changed docs, tests, or config that does not affect the running app (e.g. README, .env.example, comments).

@@ -147,7 +147,7 @@ export async function generateSubtitleCueImage(
     {
       text,
       position: 'bottom',
-      fontSize: 28,
+      fontSize: 10,
       fontColor: 'white',
       backgroundColor: 'black',
       backgroundColorOpacity: 0.75,
@@ -211,9 +211,9 @@ export async function addTextOverlayToVideo(
     switch (options.position || 'top') {
       case 'top':
         // Position in the top black bar area, lower to match user's red box
-        // Position at ~14% from top (269px for 1920px height) to be lower in the black bar
+        // Position at ~14% from top (269px for 1920px height) + 20px down
         const blackBarPosition = Math.round(videoMetadata.height * 0.14); // 14% from top
-        yPosition = blackBarPosition - Math.round(imageHeight / 2) + 10; // Center + 10px down (title ~5px lower)
+        yPosition = blackBarPosition - Math.round(imageHeight / 2) + 20; // Center + 20px down (title 10px lower)
         // Ensure it doesn't go negative
         yPosition = Math.max(0, yPosition);
         break;
@@ -229,7 +229,7 @@ export async function addTextOverlayToVideo(
         break;
       default:
         const defaultBlackBarPosition = Math.round(videoMetadata.height * 0.14);
-        yPosition = Math.max(0, defaultBlackBarPosition - Math.round(imageHeight / 2) + 10); // +10px down
+        yPosition = Math.max(0, defaultBlackBarPosition - Math.round(imageHeight / 2) + 20); // +20px down (title)
     }
   }
 

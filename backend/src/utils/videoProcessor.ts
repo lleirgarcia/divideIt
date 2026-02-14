@@ -8,6 +8,7 @@ import { summarizationService } from '../services/summarizationService';
 import { addTitleToVideo } from './videoTextOverlayCanvas';
 import { segmentsToSrt, segmentsToVtt } from './subtitleUtils';
 import { burnSubtitlesIntoVideo } from './subtitleBurner';
+import { alignSubtitleSegmentsToVideo } from './audioSyncUtils';
 
 export interface VideoMetadata {
   duration: number;
@@ -215,7 +216,7 @@ export const splitVideo = async (
           console.log(`   ✅ Segment ${i + 1} completed successfully! (9:16 format, ${targetWidth}x${targetHeight}, full image preserved)`);
           logger.info(`Segment ${i + 1} completed: ${outputPath}`);
           
-          // Transcribe the segment and save to .txt file
+          // Transcribe the segment and save to .txt file (no language = auto-detect, original language kept; no translation)
           try {
             console.log(`   🎤 Transcribing segment ${i + 1}...`);
             const transcription = await transcriptionService.transcribe(outputPath, {});
@@ -227,13 +228,14 @@ export const splitVideo = async (
             console.log(`   📝 Transcription saved: ${txtPath}`);
             logger.info(`Transcription saved for segment ${i + 1}: ${txtPath}`);
 
-            // 1) Create subtitles (SRT/VTT) and 2) burn them into the MP4 immediately
+            // 1) Create subtitles (SRT/VTT) aligned to when sound starts in the video, then 2) burn into MP4
             if (transcription.segments?.length) {
               try {
+                const alignedSegments = await alignSubtitleSegmentsToVideo(transcription.segments, outputPath);
                 const srtPath = outputPath.replace(/\.mp4$/, '.srt');
                 const vttPath = outputPath.replace(/\.mp4$/, '.vtt');
-                await fs.writeFile(srtPath, segmentsToSrt(transcription.segments), 'utf-8');
-                await fs.writeFile(vttPath, segmentsToVtt(transcription.segments), 'utf-8');
+                await fs.writeFile(srtPath, segmentsToSrt(alignedSegments), 'utf-8');
+                await fs.writeFile(vttPath, segmentsToVtt(alignedSegments), 'utf-8');
                 console.log(`   📄 Subtitles saved: ${path.basename(srtPath)}, ${path.basename(vttPath)}`);
                 logger.info(`Subtitles saved for segment ${i + 1}: ${srtPath}`);
 

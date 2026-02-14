@@ -115,11 +115,14 @@ export class TranscriptionService {
     formData.append('file', fsSync.createReadStream(audioPath));
     formData.append('model', 'whisper-1');
     
+    // Only pass language when explicitly requested; otherwise auto-detect and keep original language (no translation).
     if (options.language) {
       formData.append('language', options.language);
     }
-    if (options.prompt) {
-      formData.append('prompt', options.prompt);
+    // Reinforce: transcribe in the spoken language only; do not translate.
+    const prompt = options.prompt ?? (options.language ? undefined : 'Transcribe in the exact language spoken. Do not translate.');
+    if (prompt) {
+      formData.append('prompt', prompt);
     }
     // Use verbose_json when no format specified so we get segments for subtitles
     if (options.responseFormat) {
@@ -194,12 +197,12 @@ export class TranscriptionService {
 
     const uploadUrl = uploadResponse.data.upload_url;
 
-    // Step 2: Start transcription
+    // Step 2: Start transcription (language_code 'auto' = keep original language, no translation)
     const transcriptResponse = await axios.post(
       'https://api.assemblyai.com/v2/transcript',
       {
         audio_url: uploadUrl,
-        language_code: options.language || 'auto',
+        language_code: options.language ?? 'auto',
       },
       {
         headers: {
@@ -261,7 +264,8 @@ export class TranscriptionService {
     }
 
     const fileData = await fs.readFile(audioPath);
-    const language = options.language || 'auto';
+    // Use 'auto' when no language specified so we keep original language (no translation)
+    const language = options.language ?? 'auto';
 
     try {
       const response = await axios.post(

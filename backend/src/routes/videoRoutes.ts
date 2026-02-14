@@ -15,6 +15,7 @@ import { summarizationService } from '../services/summarizationService';
 import { addTextOverlayToVideo } from '../utils/videoTextOverlayCanvas';
 import { segmentsToSrt, segmentsToVtt } from '../utils/subtitleUtils';
 import { burnSubtitlesIntoVideo } from '../utils/subtitleBurner';
+import { alignSubtitleSegmentsToVideo } from '../utils/audioSyncUtils';
 import fs from 'fs/promises';
 import { z } from 'zod';
 
@@ -1058,16 +1059,17 @@ router.post('/add-subtitles/:filename', async (req: Request, res: Response, next
     }
 
     logger.info(`Adding subtitles to segment: ${filename}`);
-    const transcription = await transcriptionService.transcribe(videoPath, {});
+    const transcription = await transcriptionService.transcribe(videoPath, {}); // original language, no translation
 
     if (!transcription.segments?.length) {
       throw createError('No timestamped segments from transcription. Cannot generate subtitles.', 400);
     }
 
+    const alignedSegments = await alignSubtitleSegmentsToVideo(transcription.segments, videoPath);
     const srtPath = videoPath.replace(/\.mp4$/, '.srt');
     const vttPath = videoPath.replace(/\.mp4$/, '.vtt');
-    await fs.writeFile(srtPath, segmentsToSrt(transcription.segments), 'utf-8');
-    await fs.writeFile(vttPath, segmentsToVtt(transcription.segments), 'utf-8');
+    await fs.writeFile(srtPath, segmentsToSrt(alignedSegments), 'utf-8');
+    await fs.writeFile(vttPath, segmentsToVtt(alignedSegments), 'utf-8');
     logger.info(`Subtitles written: ${path.basename(srtPath)}, ${path.basename(vttPath)}`);
 
     await burnSubtitlesIntoVideo(videoPath, srtPath);

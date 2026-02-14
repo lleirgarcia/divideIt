@@ -17,6 +17,28 @@ function escapeDrawtext(text: string): string {
     .replace(/\]/g, '\\]');
 }
 
+/** Minimum duration (seconds) for a cue when burning so it stays visible (avoids sub-frame flicker). */
+const MIN_CUE_DURATION_BURN = 0.35;
+
+/**
+ * Ensure segments have a minimum duration for burning (so very short word cues are visible).
+ * Does not change segment order; may extend end up to next segment start.
+ */
+function segmentsWithMinDuration(
+  segments: Array<{ start: number; end: number; text: string }>,
+  minDur: number
+): Array<{ start: number; end: number; text: string }> {
+  return segments.map((s, i) => {
+    let end = s.end;
+    if (end - s.start < minDur) {
+      const nextStart = i < segments.length - 1 ? segments[i + 1].start : end + minDur;
+      end = Math.min(s.start + minDur, nextStart - 0.02);
+      if (end <= s.start) end = s.start + minDur;
+    }
+    return { ...s, end };
+  });
+}
+
 /**
  * Burn subtitles using drawtext (no libass). Commas in enable='between(t,a,b)' are escaped.
  */
@@ -26,14 +48,14 @@ async function burnWithDrawtext(
   segments: Array<{ start: number; end: number; text: string }>
 ): Promise<boolean> {
   if (segments.length === 0) return false;
-  const maxCues = 80;
+  const maxCues = 400;
   const cues = segments.slice(0, maxCues);
 
   const filterParts = cues.map((s) => {
     const start = Number(s.start).toFixed(3);
     const end = Number(s.end).toFixed(3);
     const text = escapeDrawtext(s.text.trim());
-    return `drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-180:fontsize=32:fontcolor=white:borderw=2:bordercolor=black@0.9:box=1:boxcolor=black@0.75:boxborderw=12`;
+    return `drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-165:fontsize=14:fontcolor=white:borderw=2:bordercolor=black@0.9:box=1:boxcolor=black@0.75:boxborderw=12`;
   });
   const filterStr = filterParts.join(',');
 
@@ -72,7 +94,7 @@ async function burnWithCanvasOverlay(
   videoWidth: number,
   videoHeight: number
 ): Promise<boolean> {
-  const maxCues = 40;
+  const maxCues = 350;
   const cues = segments.slice(0, maxCues);
   const baseDir = path.dirname(absoluteVideoPath);
   const pngPaths: string[] = [];
@@ -94,7 +116,7 @@ async function burnWithCanvasOverlay(
       const curr = `[${i + 1}:v]`;
       const next = i === cues.length - 1 ? '[out]' : `[v${i + 1}]`;
       filterParts.push(
-        `${prev}${curr}overlay=x=(w-overlay_w)/2:y=h-overlay_h-180:enable='between(t\\,${start}\\,${end})'${next}`
+        `${prev}${curr}overlay=x=(w-overlay_w)/2:y=h-overlay_h-165:enable='between(t\\,${start}\\,${end})'${next}`
       );
     }
     const filterStr = filterParts.join(';');
@@ -174,6 +196,7 @@ export async function burnSubtitlesIntoVideo(
     logger.warn(`No subtitle cues found in ${srtPath}`);
     return videoPath;
   }
+  const segmentsForBurn = segmentsWithMinDuration(segments, MIN_CUE_DURATION_BURN);
 
   const tempOutputPath = absoluteVideoPath.replace(/\.mp4$/, '_with_subs.mp4');
 
@@ -223,7 +246,7 @@ export async function burnSubtitlesIntoVideo(
   // 1) Prefer ASS (we control position: bottom center, MarginV=80)
   const assPath = absoluteVideoPath.replace(/\.mp4$/, '_temp_subs.ass');
   try {
-    await fs.writeFile(assPath, segmentsToAss(segments), 'utf-8');
+    await fs.writeFile(assPath, segmentsToAss(segmentsForBurn), 'utf-8');
     const result = await trySubtitlesFilterWithFile(assPath, 'libass+ASS');
     await fs.unlink(assPath).catch(() => {});
     if (result !== null) {
@@ -241,7 +264,7 @@ export async function burnSubtitlesIntoVideo(
 
   // 3) Fallback: drawtext (no libass)
   logger.info('Trying drawtext fallback for subtitles');
-  let drawtextOk = await burnWithDrawtext(absoluteVideoPath, tempOutputPath, segments);
+  let drawtextOk = await burnWithDrawtext(absoluteVideoPath, tempOutputPath, segmentsForBurn);
   if (drawtextOk) {
     try {
       await fs.rename(tempOutputPath, absoluteVideoPath);
@@ -269,7 +292,7 @@ export async function burnSubtitlesIntoVideo(
   const canvasOk = await burnWithCanvasOverlay(
     absoluteVideoPath,
     tempOutputPath,
-    segments,
+    segmentsForBurn,
     dimensions.width,
     dimensions.height
   );
