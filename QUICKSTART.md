@@ -101,7 +101,7 @@ FFPROBE_PATH=/path/to/ffprobe
 
 ### File Upload Fails
 
-- Check file size (max 1GB)
+- Check file size (max 2GB)
 - Verify file format (MP4, MOV, AVI)
 - Check backend logs: `backend/logs/combined.log`
 

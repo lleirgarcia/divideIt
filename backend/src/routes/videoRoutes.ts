@@ -13,6 +13,8 @@ import { createError } from '../middleware/errorHandler';
 import { transcriptionService } from '../services/transcriptionService';
 import { summarizationService } from '../services/summarizationService';
 import { addTextOverlayToVideo } from '../utils/videoTextOverlayCanvas';
+import { segmentsToSrt, segmentsToVtt } from '../utils/subtitleUtils';
+import { burnSubtitlesIntoVideo } from '../utils/subtitleBurner';
 import fs from 'fs/promises';
 import { z } from 'zod';
 
@@ -46,7 +48,7 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 1024 * 1024 * 1024 // 1GB limit
+    fileSize: 2 * 1024 * 1024 * 1024 // 2GB limit
   }
 });
 
@@ -132,7 +134,7 @@ router.post('/upload', uploadRateLimiter, upload.single('video'), async (req: Re
  * @param {number} [maxSegmentDuration=60] - Maximum segment duration in seconds (1-300, optional)
  * @returns {Object} Split response with original video info and segments
  * @throws {400} If file invalid, parameters invalid, or video too short
- * @throws {413} If file exceeds 1GB limit
+ * @throws {413} If file exceeds 2GB limit
  * @throws {429} If rate limit exceeded
  * @throws {500} If processing fails
  * 
@@ -997,6 +999,86 @@ router.post('/add-title/:filename', async (req: Request, res: Response, next) =>
         videoWithTitle: filename,
         title: titleText,
         message: 'Title overlay added successfully. Original video has been updated.'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Add burned-in subtitles to an existing segment
+ *
+ * Transcribes the segment to get timestamped text, writes SRT/VTT, then burns subtitles into the video.
+ * Use this for segments that were processed before the subtitle feature or when subtitles failed.
+ *
+ * @route POST /api/videos/add-subtitles/:filename
+ * @param {string} filename - Segment filename (e.g., 'segment_1_uuid.mp4')
+ * @param {string} [videoId] - Video ID (optional, will search in processed/ if not provided)
+ */
+router.post('/add-subtitles/:filename', async (req: Request, res: Response, next) => {
+  try {
+    const filename = req.params.filename;
+    const videoId = req.body.videoId || req.query.videoId;
+
+    if (!filename.endsWith('.mp4')) {
+      throw createError('Filename must be a .mp4 file', 400);
+    }
+
+    let videoPath: string | undefined;
+
+    if (videoId) {
+      videoPath = path.join(process.cwd(), 'processed', String(videoId), filename);
+    } else {
+      const processedDir = path.join(process.cwd(), 'processed');
+      try {
+        const dirs = await fs.readdir(processedDir);
+        for (const dir of dirs) {
+          const testPath = path.join(processedDir, dir, filename);
+          try {
+            await fs.access(testPath);
+            videoPath = testPath;
+            break;
+          } catch {
+            // continue
+          }
+        }
+      } catch {
+        // processed dir missing
+      }
+      if (!videoPath) {
+        throw createError('Video file not found. Please provide videoId parameter.', 404);
+      }
+    }
+
+    try {
+      await fs.access(videoPath);
+    } catch {
+      throw createError('Video file not found', 404);
+    }
+
+    logger.info(`Adding subtitles to segment: ${filename}`);
+    const transcription = await transcriptionService.transcribe(videoPath, {});
+
+    if (!transcription.segments?.length) {
+      throw createError('No timestamped segments from transcription. Cannot generate subtitles.', 400);
+    }
+
+    const srtPath = videoPath.replace(/\.mp4$/, '.srt');
+    const vttPath = videoPath.replace(/\.mp4$/, '.vtt');
+    await fs.writeFile(srtPath, segmentsToSrt(transcription.segments), 'utf-8');
+    await fs.writeFile(vttPath, segmentsToVtt(transcription.segments), 'utf-8');
+    logger.info(`Subtitles written: ${path.basename(srtPath)}, ${path.basename(vttPath)}`);
+
+    await burnSubtitlesIntoVideo(videoPath, srtPath);
+
+    res.json({
+      success: true,
+      data: {
+        segmentFilename: filename,
+        srtPath: path.basename(srtPath),
+        vttPath: path.basename(vttPath),
+        message: 'Subtitles generated (SRT/VTT) and burned into the video when possible. Check the video.'
       }
     });
   } catch (error) {

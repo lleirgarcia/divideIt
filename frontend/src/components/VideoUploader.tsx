@@ -21,8 +21,8 @@ export function VideoUploader() {
     if (rejectedFiles.length > 0) {
       const rejection = rejectedFiles[0];
       if (rejection.errors.some((e: any) => e.code === 'file-too-large')) {
-        setFileError('File size exceeds 1GB limit');
-        toast.error('File size exceeds 1GB limit');
+        setFileError('File size exceeds 2GB limit');
+        toast.error('File size exceeds 2GB limit');
       } else if (rejection.errors.some((e: any) => e.code === 'file-invalid-type')) {
         setFileError('Invalid file type. Please upload MP4, MOV, or AVI files');
         toast.error('Invalid file type');
@@ -50,7 +50,7 @@ export function VideoUploader() {
       'video/x-msvideo': ['.avi'],
     },
     maxFiles: 1,
-    maxSize: 1024 * 1024 * 1024, // 1GB
+    maxSize: 2 * 1024 * 1024 * 1024, // 2GB
     disabled: isProcessing,
     noClick: false,
     noKeyboard: false,
@@ -168,7 +168,7 @@ export function VideoUploader() {
                 {isDragActive ? 'Drop the video here' : 'Drag & drop a video file'}
               </p>
               <p id="dropzone-description" className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                or click the button below to select a file (MP4, MOV, AVI - Max 1GB)
+                or click the button below to select a file (MP4, MOV, AVI - Max 2GB)
               </p>
               <Button
                 type="button"

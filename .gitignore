@@ -52,6 +52,7 @@ next-env.d.ts
 uploads/
 processed/
 __fixtures__/
+backend/test-video/
 
 # Logs
 logs/

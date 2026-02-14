@@ -6,6 +6,8 @@ import { logger } from './logger';
 import { transcriptionService } from '../services/transcriptionService';
 import { summarizationService } from '../services/summarizationService';
 import { addTitleToVideo } from './videoTextOverlayCanvas';
+import { segmentsToSrt, segmentsToVtt } from './subtitleUtils';
+import { burnSubtitlesIntoVideo } from './subtitleBurner';
 
 export interface VideoMetadata {
   duration: number;
@@ -224,7 +226,27 @@ export const splitVideo = async (
             
             console.log(`   📝 Transcription saved: ${txtPath}`);
             logger.info(`Transcription saved for segment ${i + 1}: ${txtPath}`);
-            
+
+            // 1) Create subtitles (SRT/VTT) and 2) burn them into the MP4 immediately
+            if (transcription.segments?.length) {
+              try {
+                const srtPath = outputPath.replace(/\.mp4$/, '.srt');
+                const vttPath = outputPath.replace(/\.mp4$/, '.vtt');
+                await fs.writeFile(srtPath, segmentsToSrt(transcription.segments), 'utf-8');
+                await fs.writeFile(vttPath, segmentsToVtt(transcription.segments), 'utf-8');
+                console.log(`   📄 Subtitles saved: ${path.basename(srtPath)}, ${path.basename(vttPath)}`);
+                logger.info(`Subtitles saved for segment ${i + 1}: ${srtPath}`);
+
+                console.log(`   📄 Burning subtitles into MP4...`);
+                await burnSubtitlesIntoVideo(outputPath, srtPath);
+                console.log(`   ✅ MP4 created with embedded subtitles`);
+                logger.info(`Subtitles burned into segment ${i + 1}: ${outputPath}`);
+              } catch (subErr) {
+                console.warn(`   ⚠️  Subtitles/subs burn failed: ${subErr instanceof Error ? subErr.message : 'Unknown'}`);
+                logger.warn(`Subtitle write or burn failed for segment ${i + 1}: ${subErr}`);
+              }
+            }
+
             // Summarize the transcription and save to _summary.txt file
             try {
               if (summarizationService.isAvailable() && transcription.text.trim().length > 0) {

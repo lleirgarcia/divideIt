@@ -109,8 +109,12 @@ This approach is:
 ## File Structure
 
 After processing, each segment has:
-- `segment_N_uuid.mp4` - Video with title overlay (if successful)
+- `segment_N_uuid.mp4` - Video with title overlay (if successful), and burned-in subtitles when FFmpeg has libass
 - `segment_N_uuid.txt` - Full transcription
+- `segment_N_uuid.srt` - SRT subtitles (speech-synced)
+- `segment_N_uuid.vtt` - WebVTT subtitles (speech-synced)
 - `segment_N_uuid_summary.txt` - Summary
 - `segment_N_uuid_social_description.txt` - Social media description
 - `segment_N_uuid_social_title.txt` - Title text used for overlay
+
+See [SUBTITLES.md](SUBTITLES.md) for subtitle generation and burning details.

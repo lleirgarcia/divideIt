@@ -121,8 +121,11 @@ export class TranscriptionService {
     if (options.prompt) {
       formData.append('prompt', options.prompt);
     }
+    // Use verbose_json when no format specified so we get segments for subtitles
     if (options.responseFormat) {
       formData.append('response_format', options.responseFormat);
+    } else {
+      formData.append('response_format', 'verbose_json');
     }
     if (options.temperature !== undefined) {
       formData.append('temperature', options.temperature.toString());
@@ -145,9 +148,18 @@ export class TranscriptionService {
       // Get audio duration for metadata
       const metadata = await this.getAudioDuration(audioPath);
 
+      const text = response.data.text ?? '';
+      const segments =
+        response.data.segments?.map((s: { start: number; end: number; text: string }) => ({
+          start: s.start,
+          end: s.end,
+          text: (s.text || '').trim(),
+        }))?.filter((s: { text: string }) => s.text.length > 0) ?? undefined;
+
       return {
-        text: response.data.text || '',
+        text,
         language: response.data.language,
+        segments,
         duration: metadata.duration,
       };
     } catch (error: any) {

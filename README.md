@@ -4,7 +4,7 @@ A web application for splitting videos into random segments, perfect for creatin
 
 ## Features
 
-- 🎬 **Video Upload**: Support for MP4, MOV, and AVI formats (up to 1GB)
+- 🎬 **Video Upload**: Support for MP4, MOV, and AVI formats (up to 2GB)
 - ✂️ **Random Segmentation**: Automatically generates random video segments without AI
 - ⚙️ **Customizable Settings**: Control number of segments, min/max duration
 - 📥 **Easy Download**: Download individual segments with one click
@@ -14,6 +14,7 @@ A web application for splitting videos into random segments, perfect for creatin
 - ✨ **Summary Files**: Matching `_summary.txt` files are generated for quick content overview
 - 📱 **Social Media Content**: Automatic generation of TikTok/Instagram Reels descriptions and titles
 - 🎬 **Title Overlay**: Titles are automatically overlaid on videos in the top black bar area
+- 📄 **Speech-Synced Subtitles**: Each segment gets SRT and VTT subtitle files (and optional burned-in subtitles) aligned with what is being said
 - ☁️ **Google Drive Integration**: Upload and share video segments directly to Google Drive
 - 🎨 **Modern UI**: Beautiful, responsive interface built with Next.js and Tailwind CSS
 - 🌙 **Dark Mode**: Manual toggle with system preference detection
@@ -514,7 +515,7 @@ ffmpeg -version
 Change ports in `.env` files or docker-compose.yml
 
 **Large file uploads**
-Maximum file size is 1GB. Compress videos before uploading if needed.
+Maximum file size is 2GB. Compress videos before uploading if needed.
 
 ## Roadmap
 

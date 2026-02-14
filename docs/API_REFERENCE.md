@@ -79,7 +79,7 @@ Upload a video file and split it into random segments.
 **Content-Type**: `multipart/form-data`
 
 **Request Body**:
-- `video` (file, required): Video file (MP4, MOV, or AVI, max 1GB)
+- `video` (file, required): Video file (MP4, MOV, or AVI, max 2GB)
 - `segmentCount` (integer, optional): Number of segments (1-20, default: 5)
 - `minSegmentDuration` (number, optional): Minimum segment duration in seconds (1-300, default: 5)
 - `maxSegmentDuration` (number, optional): Maximum segment duration in seconds (1-300, default: 60)
@@ -134,12 +134,12 @@ Upload a video file and split it into random segments.
 }
 ```
 
-`413 Payload Too Large` - File exceeds 1GB
+`413 Payload Too Large` - File exceeds 2GB
 ```json
 {
   "success": false,
   "error": {
-    "message": "File too large. Maximum size is 1GB."
+    "message": "File too large. Maximum size is 2GB."
   }
 }
 ```
@@ -338,7 +338,7 @@ interface SplitVideoResponse {
 ### File Upload
 
 - **Formats**: MP4, MOV, AVI
-- **Max Size**: 1GB
+- **Max Size**: 2GB
 - **MIME Types**: 
   - `video/mp4`
   - `video/quicktime`
@@ -370,7 +370,7 @@ All errors follow a consistent format:
 Common error scenarios:
 
 1. **Invalid File Type**: File doesn't match allowed formats
-2. **File Too Large**: File exceeds 1GB limit
+2. **File Too Large**: File exceeds 2GB limit
 3. **Invalid Parameters**: Parameters outside allowed ranges
 4. **Video Too Short**: Video duration less than minimum segment duration
 5. **Processing Failure**: FFmpeg processing error

@@ -6,6 +6,8 @@ import { logger } from '../utils/logger';
 import { transcriptionService } from './transcriptionService';
 import { summarizationService } from './summarizationService';
 import { addTitleToVideo } from '../utils/videoTextOverlayCanvas';
+import { segmentsToSrt, segmentsToVtt } from '../utils/subtitleUtils';
+import { burnSubtitlesIntoVideo } from '../utils/subtitleBurner';
 
 export interface VideoMetadata {
   duration: number;
@@ -160,7 +162,21 @@ export class VideoService {
         await fs.writeFile(txtPath, transcription.text, 'utf-8');
         
         logger.info(`Transcription saved for segment ${i + 1}: ${txtPath}`);
-        
+
+        // Create subtitles (SRT/VTT) and burn them into the MP4 immediately
+        if (transcription.segments?.length) {
+          try {
+            const srtPath = outputPath.replace(/\.mp4$/, '.srt');
+            await fs.writeFile(srtPath, segmentsToSrt(transcription.segments), 'utf-8');
+            await fs.writeFile(outputPath.replace(/\.mp4$/, '.vtt'), segmentsToVtt(transcription.segments), 'utf-8');
+            logger.info(`Subtitles saved for segment ${i + 1}: ${srtPath}`);
+            await burnSubtitlesIntoVideo(outputPath, srtPath);
+            logger.info(`MP4 created with embedded subtitles for segment ${i + 1}`);
+          } catch (subErr) {
+            logger.warn(`Subtitle write or burn failed for segment ${i + 1}: ${subErr}`);
+          }
+        }
+
         // Summarize the transcription and save to _summary.txt file
         try {
           if (summarizationService.isAvailable() && transcription.text.trim().length > 0) {

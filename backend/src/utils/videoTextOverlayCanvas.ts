@@ -133,6 +133,34 @@ async function generateTextImage(
 }
 
 /**
+ * Generate a single subtitle cue image (for burning subtitles via overlay when libass/drawtext are not available).
+ * Bottom-centered, white text on semi-transparent black, same style as cue area.
+ */
+export async function generateSubtitleCueImage(
+  text: string,
+  outputPath: string,
+  videoWidth: number = 1080,
+  videoHeight: number = 1920
+): Promise<{ imagePath: string; imageWidth: number; imageHeight: number }> {
+  return generateTextImage(
+    text,
+    {
+      text,
+      position: 'bottom',
+      fontSize: 16,
+      fontColor: 'white',
+      backgroundColor: 'black',
+      backgroundColorOpacity: 0.75,
+      padding: 8,
+      fontWeight: 'normal',
+    },
+    outputPath,
+    videoWidth,
+    videoHeight
+  );
+}
+
+/**
  * Add text overlay to video using Canvas-generated image and overlay filter
  * 
  * This is an alternative to subtitles filter that doesn't require libass.
@@ -184,9 +212,8 @@ export async function addTextOverlayToVideo(
       case 'top':
         // Position in the top black bar area, lower to match user's red box
         // Position at ~14% from top (269px for 1920px height) to be lower in the black bar
-        // User requested to lower it a bit more
         const blackBarPosition = Math.round(videoMetadata.height * 0.14); // 14% from top
-        yPosition = blackBarPosition - Math.round(imageHeight / 2) + 5; // Center the text box vertically + 5px down
+        yPosition = blackBarPosition - Math.round(imageHeight / 2) + 10; // Center + 10px down (title ~5px lower)
         // Ensure it doesn't go negative
         yPosition = Math.max(0, yPosition);
         break;
@@ -202,7 +229,7 @@ export async function addTextOverlayToVideo(
         break;
       default:
         const defaultBlackBarPosition = Math.round(videoMetadata.height * 0.14);
-        yPosition = Math.max(0, defaultBlackBarPosition - Math.round(imageHeight / 2) + 5); // +5px down
+        yPosition = Math.max(0, defaultBlackBarPosition - Math.round(imageHeight / 2) + 10); // +10px down
     }
   }
 
