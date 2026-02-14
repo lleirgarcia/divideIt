@@ -2,7 +2,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs/promises';
 import { logger } from './logger';
-import { parseSrt, segmentsToAss } from './subtitleUtils';
+import { parseSrt, segmentsToAssWithPreviousLine } from './subtitleUtils';
 import { generateSubtitleCueImage } from './videoTextOverlayCanvas';
 
 /** Escape text for FFmpeg drawtext: commas must be escaped so the filter chain is not split */
@@ -39,8 +39,14 @@ function segmentsWithMinDuration(
   });
 }
 
+/** Main line y (from bottom). Previous line just above with small gap (~6px). */
+const DRAWTEXT_MAIN_Y = 165;
+const DRAWTEXT_PREV_Y = 196;
+const DRAWTEXT_MAIN_FONT = 14;
+const DRAWTEXT_PREV_FONT = 7;
+
 /**
- * Burn subtitles using drawtext (no libass). Commas in enable='between(t,a,b)' are escaped.
+ * Burn subtitles using drawtext (no libass). Current line main; previous line small, 10px above.
  */
 async function burnWithDrawtext(
   absoluteVideoPath: string,
@@ -51,13 +57,21 @@ async function burnWithDrawtext(
   const maxCues = 400;
   const cues = segments.slice(0, maxCues);
 
-  const filterParts = cues.map((s) => {
+  const mainParts = cues.map((s) => {
     const start = Number(s.start).toFixed(3);
     const end = Number(s.end).toFixed(3);
     const text = escapeDrawtext(s.text.trim());
-    return `drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-165:fontsize=14:fontcolor=white:borderw=2:bordercolor=black@0.9:box=1:boxcolor=black@0.75:boxborderw=12`;
+    return `drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-${DRAWTEXT_MAIN_Y}:fontsize=${DRAWTEXT_MAIN_FONT}:fontcolor=white:borderw=2:bordercolor=black@0.9:box=1:boxcolor=black@0.75:boxborderw=12`;
   });
-  const filterStr = filterParts.join(',');
+  const prevParts: string[] = [];
+  for (let i = 1; i < cues.length; i++) {
+    const s = cues[i];
+    const start = Number(s.start).toFixed(3);
+    const end = Number(s.end).toFixed(3);
+    const text = escapeDrawtext(cues[i - 1].text.trim());
+    prevParts.push(`drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-${DRAWTEXT_PREV_Y}:fontsize=${DRAWTEXT_PREV_FONT}:fontcolor=white@0.55:borderw=1:bordercolor=black@0.5:box=1:boxcolor=black@0.4:boxborderw=6`);
+  }
+  const filterStr = [...prevParts, ...mainParts].join(',');
 
   return new Promise((resolve) => {
     ffmpeg(absoluteVideoPath)
@@ -103,7 +117,8 @@ async function burnWithCanvasOverlay(
     for (let i = 0; i < cues.length; i++) {
       const s = cues[i];
       const pngPath = path.join(baseDir, `_sub_cue_${i}.png`);
-      await generateSubtitleCueImage(s.text.trim(), pngPath, videoWidth, videoHeight);
+      const previousText = i > 0 ? cues[i - 1].text.trim() : undefined;
+      await generateSubtitleCueImage(s.text.trim(), pngPath, videoWidth, videoHeight, previousText);
       pngPaths.push(pngPath);
     }
 
@@ -247,7 +262,7 @@ export async function burnSubtitlesIntoVideo(
   // 1) Prefer ASS (we control position: bottom center, MarginV=80)
   const assPath = absoluteVideoPath.replace(/\.mp4$/, '_temp_subs.ass');
   try {
-    await fs.writeFile(assPath, segmentsToAss(segmentsForBurn), 'utf-8');
+    await fs.writeFile(assPath, segmentsToAssWithPreviousLine(segmentsForBurn), 'utf-8');
     const result = await trySubtitlesFilterWithFile(assPath, 'libass+ASS');
     await fs.unlink(assPath).catch(() => {});
     if (result !== null) {

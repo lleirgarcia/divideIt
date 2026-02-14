@@ -211,6 +211,43 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return header + lines.join('\n');
 }
 
+/** Main subtitle line: MarginV=65 (~35px tall). Previous line just above with ~6px gap => MarginV=106. */
+const ASS_PREVIOUS_MARGIN_V = 106;
+const ASS_PREVIOUS_FONTSIZE = 5;
+/** ASS PrimaryColour for previous line: &HAABBGGRR — 80 = ~50% transparent white. */
+const ASS_PREVIOUS_COLOUR = '&H80FFFFFF';
+
+/**
+ * ASS content with two lines: current (main) and previous (small, 10px above).
+ * While current segment is shown, the previous segment's text appears above in half size.
+ */
+export function segmentsToAssWithPreviousLine(segments: SubtitleSegment[]): string {
+  if (!segments.length) return segmentsToAss(segments);
+  const header = `[Script Info]
+Title: divideIt subtitles
+ScriptType: v4.00+
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,10,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,65,1
+Style: Previous,Arial,${ASS_PREVIOUS_FONTSIZE},${ASS_PREVIOUS_COLOUR},&H800000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,${ASS_PREVIOUS_MARGIN_V},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+  const dialogueLines: string[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i];
+    const text = s.text.trim().replace(/\n/g, '\\N').replace(/\r/g, '');
+    if (i > 0) {
+      const prevText = segments[i - 1].text.trim().replace(/\n/g, '\\N').replace(/\r/g, '');
+      dialogueLines.push(`Dialogue: 0,${formatAssTime(s.start)},${formatAssTime(s.end)},Previous,,0,0,0,,${prevText}`);
+    }
+    dialogueLines.push(`Dialogue: 0,${formatAssTime(s.start)},${formatAssTime(s.end)},Default,,0,0,0,,${text}`);
+  }
+  return header + dialogueLines.join('\n');
+}
+
 /** Parse SRT timestamp "00:00:01,234" (HH:MM:SS,mmm) to seconds */
 function srtTimestampToSeconds(s: string): number {
   const trimmed = s.trim();

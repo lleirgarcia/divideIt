@@ -1,7 +1,8 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
+import os from 'os';
 import fs from 'fs/promises';
-import { createCanvas } from 'canvas';
+import { createCanvas, loadImage } from 'canvas';
 import { logger } from './logger';
 
 export interface TextOverlayOptions {
@@ -134,30 +135,93 @@ async function generateTextImage(
 
 /**
  * Generate a single subtitle cue image (for burning subtitles via overlay when libass/drawtext are not available).
- * Bottom-centered, white text on semi-transparent black, same style as cue area.
+ * If previousText is set, draws two lines: previous (half size, above) and current (main), 10px apart.
  */
 export async function generateSubtitleCueImage(
   text: string,
   outputPath: string,
   videoWidth: number = 1080,
-  videoHeight: number = 1920
+  videoHeight: number = 1920,
+  previousText?: string
 ): Promise<{ imagePath: string; imageWidth: number; imageHeight: number }> {
-  return generateTextImage(
-    text,
-    {
+  if (!previousText?.trim()) {
+    return generateTextImage(
       text,
-      position: 'bottom',
-      fontSize: 10,
-      fontColor: 'white',
-      backgroundColor: 'black',
-      backgroundColorOpacity: 0.75,
-      padding: 12,
-      fontWeight: 'normal',
-    },
-    outputPath,
-    videoWidth,
-    videoHeight
-  );
+      {
+        text,
+        position: 'bottom',
+        fontSize: 10,
+        fontColor: 'white',
+        backgroundColor: 'black',
+        backgroundColorOpacity: 0.75,
+        padding: 12,
+        fontWeight: 'normal',
+      },
+      outputPath,
+      videoWidth,
+      videoHeight
+    );
+  }
+  return generateSubtitleCueImageWithPrevious(text, previousText.trim(), outputPath, videoWidth, videoHeight);
+}
+
+/** Gap (px) between previous and current subtitle lines (small separation). */
+const SUB_PREV_LINE_GAP = 6;
+
+/**
+ * Draw one subtitle line (current or previous) and return { width, height } and the drawn buffer.
+ * Used to composite two lines in one image.
+ */
+async function drawSubtitleLine(
+  text: string,
+  fontSize: number,
+  padding: number
+): Promise<{ width: number; height: number; buffer: Buffer }> {
+  const opts = {
+    text,
+    position: 'bottom' as const,
+    fontSize,
+    fontColor: 'white',
+    backgroundColor: 'black',
+    backgroundColorOpacity: 0.75,
+    padding,
+    fontWeight: 'normal' as const,
+  };
+  const tempPath = path.join(os.tmpdir(), `sub_line_${Date.now()}.png`);
+  const { imageWidth: w, imageHeight: h } = await generateTextImage(text, opts, tempPath, 1080, 1920);
+  const buffer = await fs.readFile(tempPath);
+  await fs.unlink(tempPath).catch(() => {});
+  return { width: w, height: h, buffer };
+}
+
+async function generateSubtitleCueImageWithPrevious(
+  currentText: string,
+  previousText: string,
+  outputPath: string,
+  _videoWidth: number,
+  _videoHeight: number
+): Promise<{ imagePath: string; imageWidth: number; imageHeight: number }> {
+  const prevSize = 5;
+  const prevPadding = 6;
+  const currSize = 10;
+  const currPadding = 12;
+  const [prev, curr] = await Promise.all([
+    drawSubtitleLine(previousText, prevSize, prevPadding),
+    drawSubtitleLine(currentText, currSize, currPadding),
+  ]);
+  const totalWidth = Math.max(prev.width, curr.width);
+  const totalHeight = prev.height + SUB_PREV_LINE_GAP + curr.height;
+  const canvas = createCanvas(totalWidth, totalHeight);
+  const ctx = canvas.getContext('2d');
+  const prevImg = await loadImage(prev.buffer);
+  const currImg = await loadImage(curr.buffer);
+  ctx.globalAlpha = 0.55;
+  ctx.drawImage(prevImg, (totalWidth - prev.width) / 2, 0);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(currImg, (totalWidth - curr.width) / 2, prev.height + SUB_PREV_LINE_GAP);
+  const outBuffer = canvas.toBuffer('image/png');
+  await fs.writeFile(outputPath, outBuffer);
+  return { imagePath: outputPath, imageWidth: totalWidth, imageHeight: totalHeight };
 }
 
 /**
