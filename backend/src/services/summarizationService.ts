@@ -29,6 +29,14 @@ export class SummarizationService {
   }
 
   /**
+   * Model to use for summarization. Default: gpt-4o-mini (smarter than gpt-3.5-turbo).
+   * Override with OPENAI_SUMMARIZATION_MODEL (e.g. gpt-4o for best quality).
+   */
+  private getModel(): string {
+    return process.env.OPENAI_SUMMARIZATION_MODEL || 'gpt-4o-mini';
+  }
+
+  /**
    * Summarize text using OpenAI GPT
    */
   async summarize(
@@ -81,7 +89,7 @@ Video transcription:\n\n${text}`;
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
-          model: 'gpt-3.5-turbo',
+          model: this.getModel(),
           messages: [
             {
               role: 'system',
@@ -177,7 +185,7 @@ Video transcription:\n\n${text}`;
       const descriptionResponse = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
-          model: 'gpt-3.5-turbo',
+          model: this.getModel(),
           messages: [
             {
               role: 'system',
@@ -216,15 +224,15 @@ Video transcription:\n\n${text}`
       const titleResponse = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
-          model: 'gpt-3.5-turbo',
+          model: this.getModel(),
           messages: [
             {
               role: 'system',
-              content: `You are a social media expert. Create catchy, short titles (exactly 5-7 words) for TikTok and Instagram Reels. Titles should be attention-grabbing and summarize the video content. Always respond in ${langInstruction} only. Respond ONLY with the title, no additional text.`
+              content: `You are a social media expert. Create catchy, short titles (exactly 5-7 words) for TikTok and Instagram Reels. Titles should be attention-grabbing and summarize the video content. Always respond in ${langInstruction} only. Respond ONLY with the title, no additional text. And assure the title is comprensive enought for the current description.`
             },
             {
               role: 'user',
-              content: `Based on this video transcription, create a catchy title of exactly 5-7 words in ${langInstruction} for a TikTok/Instagram Reel. The title should be attention-grabbing and summarize the main point. Respond ONLY with the title, nothing else.\n\nVideo transcription:\n\n${text}`
+              content: `Based on this video transcription, create a catchy title of exactly 5-7 words in ${langInstruction} for a TikTok/Instagram Reel. The title should be attention-grabbing and summarize the main point. Respond ONLY with the title, nothing else. And assure the title is comprensive enought for the current description.\n\nVideo transcription:\n\n${text}`
             }
           ],
           max_tokens: 30,

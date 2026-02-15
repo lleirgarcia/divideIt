@@ -50,7 +50,7 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 2 * 1024 * 1024 * 1024 // 2GB limit
+    fileSize: 10 * 1024 * 1024 * 1024 // 10GB limit
   }
 });
 
@@ -136,7 +136,7 @@ router.post('/upload', uploadRateLimiter, upload.single('video'), async (req: Re
  * @param {number} [maxSegmentDuration=60] - Maximum segment duration in seconds (1-300, optional)
  * @returns {Object} Split response with original video info and segments
  * @throws {400} If file invalid, parameters invalid, or video too short
- * @throws {413} If file exceeds 2GB limit
+ * @throws {413} If file exceeds 10GB limit
  * @throws {429} If rate limit exceeded
  * @throws {500} If processing fails
  * 

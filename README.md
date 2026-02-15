@@ -4,7 +4,7 @@ A web application for splitting videos into random segments, perfect for creatin
 
 ## Features
 
-- 🎬 **Video Upload**: Support for MP4, MOV, and AVI formats (up to 2GB)
+- 🎬 **Video Upload**: Support for MP4, MOV, and AVI formats (up to 10GB)
 - ✂️ **Random Segmentation**: Automatically generates random video segments without AI
 - ⚙️ **Customizable Settings**: Control number of segments, min/max duration
 - 📥 **Easy Download**: Download individual segments with one click
@@ -517,7 +517,7 @@ ffmpeg -version
 Change ports in `.env` files or docker-compose.yml
 
 **Large file uploads**
-Maximum file size is 2GB. Compress videos before uploading if needed.
+Maximum file size is 10GB. Compress videos before uploading if needed.
 
 ## Roadmap
 

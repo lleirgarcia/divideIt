@@ -52,8 +52,8 @@ async function burnWithDrawtext(
   const cues = segments.slice(0, maxCues);
 
   /** Main line: y=h-165, font 14. Previous line: 4px gap above => y=h-165-18 (font 7) ≈ h-183. */
-  const mainY = 165;
-  const prevY = 183;
+  const mainY = 100;
+  const prevY = 123;
   const filterParts = cues.map((s, i) => {
     const start = Number(s.start).toFixed(3);
     const end = Number(s.end).toFixed(3);
@@ -124,7 +124,7 @@ async function burnWithCanvasOverlay(
       const curr = `[${i + 1}:v]`;
       const next = i === cues.length - 1 ? '[out]' : `[v${i + 1}]`;
       filterParts.push(
-        `${prev}${curr}overlay=x=(w-overlay_w)/2:y=h-overlay_h-165:enable='between(t\\,${start}\\,${end})'${next}`
+        `${prev}${curr}overlay=x=(w-overlay_w)/2:y=h-overlay_h-100:enable='between(t\\,${start}\\,${end})'${next}`
       );
     }
     const filterStr = filterParts.join(';');

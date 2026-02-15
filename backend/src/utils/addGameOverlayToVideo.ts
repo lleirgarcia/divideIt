@@ -1,7 +1,13 @@
 /**
  * Overlay the space-invaders loop video (nave vs marcianos, never wins) on a segment.
- * The game loops for the full duration of the segment. Position: bottom-right corner.
+ * The game fills the entire bottom band of the frame (size set by BOTTOM_BAND_RATIO).
+ * Run only on video that does NOT already have the game, or you get a duplicated overlay.
  * Uses spawn so the script always finishes when FFmpeg exits (no hang at 100%).
+ *
+ * Manual tuning (this file):
+ *   - BOTTOM_BAND_HEIGHT_RATIO: fraction of frame height for the game band (0.25 = 25%, 0.65 = 65%).
+ *   - BOTTOM_BAND_WIDTH_RATIO: fraction of frame width (1 = full width, 0.8 = 80%); overlay is centered if < 1.
+ *   - overlayFilter: FFmpeg filter_complex; position x=(main_w-overlay_w)/2, y=main_h-overlay_h (bottom, centered).
  */
 
 import path from 'path';
@@ -9,9 +15,11 @@ import fs from 'fs/promises';
 import { spawn } from 'child_process';
 import ffmpeg from 'fluent-ffmpeg';
 import { logger } from './logger';
-import { getOverlayDimensions } from './spaceInvadersOverlay';
 
-const PADDING = 20;
+/** Fraction of frame height for the bottom band. 0.65 ≈ bottom 2/3. */
+const BOTTOM_BAND_HEIGHT_RATIO = 3.6;
+/** Fraction of frame width for the game band. 1 = full width, 0.8 = 80% (centered). */
+const BOTTOM_BAND_WIDTH_RATIO = 3.3;
 const GAME_VIDEO_NAME = 'space_invaders_loop.mp4';
 
 function getGameOverlayPath(): string {
@@ -53,11 +61,9 @@ export async function addGameOverlayToVideo(
   const absoluteOut = path.resolve(out);
   const absoluteOutTmp = path.join(path.dirname(absoluteOut), 'tmp_' + path.basename(absoluteOut));
 
-  const { width: ow, height: oh } = getOverlayDimensions();
-  // Scale to 75% so the game is clearly visible in the corner (was 50%, too small on vertical video)
-  const owScaled = Math.floor(ow * 0.75);
-  const ohScaled = Math.floor(oh * 0.75);
-  const overlayFilter = `[1:v]scale=${owScaled}:${ohScaled}[ov];[0:v][ov]overlay=main_w-overlay_w-${PADDING}:main_h-overlay_h-${PADDING}[out]`;
+  // Scale game to bottom band size (width and height from ratios), then overlay at bottom (centered if width < 1).
+  const overlayFilter =
+    `[1:v][0:v]scale2ref=w='main_w*${BOTTOM_BAND_WIDTH_RATIO}':h='main_h*${BOTTOM_BAND_HEIGHT_RATIO}'[ov][ref];[ref][ov]overlay=(main_w-overlay_w)/2:main_h-overlay_h[out]`;
 
   let mainDurationSec = 0;
   try {

@@ -199,7 +199,7 @@ ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,10,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,65,1
+Style: Default,Arial,10,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,205,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -211,8 +211,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return header + lines.join('\n');
 }
 
-/** Main subtitle line: MarginV=65. Previous line with small gap (~15px) above => MarginV=82. */
-const ASS_PREVIOUS_MARGIN_V = 82;
+/** Main subtitle line: MarginV=205. Previous line with small gap (~15px) above => MarginV=82. */
+const ASS_PREVIOUS_MARGIN_V =200;
 const ASS_PREVIOUS_FONTSIZE = 5;
 /** ASS PrimaryColour for previous line: &HAABBGGRR — 80 = ~50% transparent white. */
 const ASS_PREVIOUS_COLOUR = '&H80FFFFFF';
@@ -229,7 +229,7 @@ ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,10,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,65,1
+Style: Default,Arial,10,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,205,1
 Style: Previous,Arial,${ASS_PREVIOUS_FONTSIZE},${ASS_PREVIOUS_COLOUR},&H800000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,${ASS_PREVIOUS_MARGIN_V},1
 
 [Events]
