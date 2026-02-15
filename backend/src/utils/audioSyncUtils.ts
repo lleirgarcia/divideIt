@@ -127,10 +127,11 @@ export function getVideoDuration(filePath: string): Promise<number> {
 /**
  * Align subtitle segments to the video timeline in a general way:
  * 1. Detect when sound actually starts in the video (leading silence or from 0).
- * 2. Compute offset = firstSoundTime - firstSubtitleStart (positive or negative).
- * 3. Shift all segments by that offset so subtitles match when the user speaks.
- * 4. Clamp to [0, duration] and drop segments that end up entirely out of range.
- * Works for any video regardless of where speech starts (0s, 5s, 13s, etc.).
+ * 2. Compute offset = firstSoundTime - firstSubtitleStart.
+ * 3. Only apply positive offsets (delay subtitles). Never apply negative offset:
+ *    - Negative offset would shift subtitles earlier and can drop the first phrase
+ *    - and cause subtitles to appear ahead of speech ("adelantados").
+ * 4. Shift segments by offset (if positive), clamp to [0, duration], drop only if entirely out of range.
  */
 export async function alignSubtitleSegmentsToVideo(
   segments: SubtitleSegment[],
@@ -146,6 +147,9 @@ export async function alignSubtitleSegmentsToVideo(
 
   const firstStart = segments[0].start;
   let offset = firstSoundTime - firstStart;
+  // Only apply positive offset (delay subtitles). Negative offset causes first phrase to be dropped
+  // and subtitles to appear ahead of speech.
+  if (offset < 0) offset = 0;
   if (Math.abs(offset) < MIN_OFFSET_SEC) return clampSegmentsToDuration(segments, duration);
 
   const aligned: SubtitleSegment[] = [];
@@ -159,7 +163,7 @@ export async function alignSubtitleSegmentsToVideo(
     aligned.push({ start, end, text: s.text });
   }
   logger.info(
-    `Subtitle alignment: first sound at ${firstSoundTime.toFixed(1)}s, offset ${offset >= 0 ? '+' : ''}${offset.toFixed(1)}s, duration ${duration.toFixed(1)}s`
+    `Subtitle alignment: first sound at ${firstSoundTime.toFixed(1)}s, offset +${offset.toFixed(1)}s, duration ${duration.toFixed(1)}s`
   );
   return aligned.length ? aligned : segments;
 }
