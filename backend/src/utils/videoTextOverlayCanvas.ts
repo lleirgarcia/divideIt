@@ -2,8 +2,32 @@ import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
-import { createCanvas, loadImage } from 'canvas';
+import { createCanvas, loadImage, registerFont } from 'canvas';
 import { logger } from './logger';
+
+/** Optional custom title font: set TITLE_FONT_PATH to a .ttf/.otf file and TITLE_FONT_FAMILY to the family name to use. */
+function registerTitleFontIfConfigured(): void {
+  const fontPath = process.env.TITLE_FONT_PATH;
+  const family = process.env.TITLE_FONT_FAMILY || 'CustomTitle';
+  if (!fontPath) return;
+  try {
+    const resolved = path.resolve(fontPath);
+    registerFont(resolved, { family, weight: 'normal', style: 'normal' });
+    // Register same file for bold (canvas may use it or synthetic bold)
+    registerFont(resolved, { family, weight: 'bold', style: 'normal' });
+    logger.info(`Title font registered: ${family} from ${path.basename(resolved)}`);
+  } catch (err) {
+    logger.warn(`Could not register title font from ${fontPath}: ${err}`);
+  }
+}
+
+let titleFontRegistered = false;
+function ensureTitleFontRegistered(): void {
+  if (!titleFontRegistered) {
+    registerTitleFontIfConfigured();
+    titleFontRegistered = true;
+  }
+}
 
 export interface TextOverlayOptions {
   text: string;
@@ -235,6 +259,7 @@ export async function addTextOverlayToVideo(
   outputPath: string,
   options: TextOverlayOptions
 ): Promise<void> {
+  ensureTitleFontRegistered();
   // Get video dimensions
   const videoMetadata = await new Promise<{ width: number; height: number }>((resolve, reject) => {
     ffmpeg.ffprobe(inputPath, (err, metadata) => {
@@ -393,16 +418,18 @@ export async function addTitleToVideo(
   const finalOutputPath = outputPath || videoPath.replace(/\.mp4$/, '_with_title.mp4');
 
   // Add text overlay - positioned in top black bar, centered horizontally
+  const titleFontFamily = process.env.TITLE_FONT_FAMILY || 'Arial'; // e.g. 'Georgia', 'Helvetica', or custom registered name
   await addTextOverlayToVideo(videoPath, finalOutputPath, {
     text: titleText,
     position: 'top',
-    fontSize: 56, // Slightly larger for better visibility
+    fontSize: 56,
     fontColor: 'white',
     backgroundColor: 'black',
-    backgroundColorOpacity: 0.8, // More opaque background for better readability
-    padding: 25, // More padding for better visibility
-    fontWeight: 'bold', // Bold font for better visibility
-    x: 0.5 // Center horizontally
+    backgroundColorOpacity: 0.8,
+    padding: 25,
+    fontWeight: 'bold',
+    fontFamily: titleFontFamily,
+    x: 0.5
   });
 
   return finalOutputPath;

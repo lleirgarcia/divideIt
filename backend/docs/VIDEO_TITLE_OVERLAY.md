@@ -71,6 +71,27 @@ curl -X POST "http://localhost:3051/api/videos/add-title/segment_1_uuid.mp4?vide
 4. Uses FFmpeg `overlay` filter to composite the text image onto the video
 5. Replaces original video with the version containing the title overlay
 
+## Custom title font
+
+You can change the title font in two ways:
+
+### 1. System font (no extra files)
+
+Set in `.env`:
+```bash
+TITLE_FONT_FAMILY=Georgia
+```
+Use any font name available on the server (e.g. `Arial`, `Helvetica`, `Georgia`, `Verdana`, `Times New Roman`). Default is `Arial` if not set.
+
+### 2. Custom font file (.ttf / .otf)
+
+Place your font file in the project (e.g. `backend/fonts/MyFont.ttf`) and set:
+```bash
+TITLE_FONT_PATH=./fonts/MyFont.ttf
+TITLE_FONT_FAMILY=MyFont
+```
+The same family name is used for normal and bold. Restart the backend after changing these.
+
 ## Troubleshooting
 
 ### Error: "Cannot find module 'canvas'"
@@ -114,7 +135,7 @@ After processing, each segment has:
 - `segment_N_uuid.srt` - SRT subtitles (speech-synced)
 - `segment_N_uuid.vtt` - WebVTT subtitles (speech-synced)
 - `segment_N_uuid_summary.txt` - Summary
-- `segment_N_uuid_social_description.txt` - Social media description
+- `clipN_caption.txt` - Caption / social description
 - `segment_N_uuid_social_title.txt` - Title text used for overlay
 
 See [SUBTITLES.md](SUBTITLES.md) for subtitle generation and burning details.

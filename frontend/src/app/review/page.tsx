@@ -58,7 +58,7 @@ function SegmentCard({
           <AttentionLoop />
           <a
             href={videoSrc}
-            download={`segment_${segment.segmentNumber}.mp4`}
+            download={`clip${segment.segmentNumber}.mp4`}
             className="text-sm text-primary-600 dark:text-primary-400 hover:underline mt-2 inline-block"
           >
             Download video

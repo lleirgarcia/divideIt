@@ -1,7 +1,6 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs/promises';
-import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
 import { transcriptionService } from './transcriptionService';
 import { summarizationService } from './summarizationService';
@@ -116,17 +115,18 @@ export class VideoService {
   }
 
   /**
-   * Split video into random segments
+   * Split video into random segments.
+   * Uses a timestamp-based folder (YYYYMMDD_HHmmss) and clip1.mp4, clip2.mp4, ... for output files.
    */
   async splitVideo(
     inputPath: string,
-    videoId: string,
+    _videoId: string,
     options: {
       numSegments?: number;
       minDuration?: number;
       maxDuration?: number;
     } = {}
-  ): Promise<VideoSegment[]> {
+  ): Promise<{ segments: VideoSegment[]; videoId: string }> {
     const metadata = await this.getVideoMetadata(inputPath);
     const {
       numSegments = 3,
@@ -141,15 +141,24 @@ export class VideoService {
       maxDuration
     );
 
-    const videoSegments: VideoSegment[] = [];
-    const videoDir = path.join(this.processedDir, videoId);
+    const now = new Date();
+    const timestamp =
+      now.getFullYear() +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0') +
+      '_' +
+      String(now.getHours()).padStart(2, '0') +
+      String(now.getMinutes()).padStart(2, '0') +
+      String(now.getSeconds()).padStart(2, '0');
+    const videoDir = path.join(this.processedDir, timestamp);
     await fs.mkdir(videoDir, { recursive: true });
+
+    const videoSegments: VideoSegment[] = [];
 
     // Process segments sequentially to avoid overwhelming the system
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
-      const segmentId = uuidv4();
-      const outputPath = path.join(videoDir, `segment-${i + 1}-${segmentId}.mp4`);
+      const outputPath = path.join(videoDir, `clip${i + 1}.mp4`);
 
       await this.extractSegment(inputPath, segment.start, segment.end, outputPath);
 
@@ -241,7 +250,7 @@ export class VideoService {
       }
 
       videoSegments.push({
-        id: segmentId,
+        id: String(i + 1),
         startTime: segment.start,
         endTime: segment.end,
         duration: segment.end - segment.start,
@@ -249,8 +258,8 @@ export class VideoService {
       });
     }
 
-    logger.info(`Successfully created ${videoSegments.length} segments for video ${videoId}`);
-    return videoSegments;
+    logger.info(`Successfully created ${videoSegments.length} segments for video ${timestamp}`);
+    return { segments: videoSegments, videoId: timestamp };
   }
 
   /**

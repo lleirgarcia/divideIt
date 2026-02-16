@@ -225,9 +225,17 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
       console.log(`   Segment ${idx + 1}: ${seg.startTime.toFixed(2)}s - ${seg.endTime.toFixed(2)}s (${seg.duration.toFixed(2)}s)`);
     });
 
-    // Create output directory
-    const fileId = path.basename(videoPath, path.extname(videoPath));
-    outputDir = path.join('processed', fileId);
+    // Create output directory with timestamp (YYYYMMDD_HHmmss)
+    const now = new Date();
+    const timestamp =
+      now.getFullYear() +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0') +
+      '_' +
+      String(now.getHours()).padStart(2, '0') +
+      String(now.getMinutes()).padStart(2, '0') +
+      String(now.getSeconds()).padStart(2, '0');
+    outputDir = path.join('processed', timestamp);
     await fs.mkdir(outputDir, { recursive: true });
     console.log(`📁 Output directory created: ${outputDir}`);
 
@@ -263,7 +271,7 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
     res.json({
       success: true,
       data: {
-        videoId: fileId, // Add videoId to response
+        videoId: timestamp,
         originalVideo: {
           filename: req.file.originalname,
           duration: metadata.duration,
@@ -295,12 +303,12 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
  * Files are stored in the processed directory organized by video ID.
  * 
  * @route GET /api/videos/download/:filename
- * @param {string} filename - Segment filename (e.g., 'segment_1_uuid.mp4')
+ * @param {string} filename - Segment filename (e.g., 'clip1.mp4')
  * @returns {File} Video segment file (video/mp4)
  * @throws {404} If segment file not found
  * 
  * @example
- * GET /api/videos/download/segment_1_a1b2c3d4.mp4
+ * GET /api/videos/download/clip1.mp4
  * Response: Binary video file
  */
 router.get('/download/:filename', async (req: Request, res: Response, next) => {
@@ -356,7 +364,7 @@ router.get('/download/:filename', async (req: Request, res: Response, next) => {
  *
  * @route GET /api/videos/segment-summary
  * @param {string} videoId - Video ID (processed folder name)
- * @param {string} filename - Segment filename (e.g. segment_1_uuid.mp4)
+ * @param {string} filename - Segment filename (e.g. clip1.mp4)
  * @returns {Object} { summary: string }
  */
 router.get('/segment-summary', async (req: Request, res: Response, next) => {
@@ -479,7 +487,7 @@ router.post('/transcribe', uploadRateLimiter, upload.single('video'), async (req
  * Useful for getting transcriptions of individual segments after splitting.
  * 
  * @route POST /api/videos/transcribe-segment/:filename
- * @param {string} filename - Segment filename (e.g., 'segment_1_uuid.mp4')
+ * @param {string} filename - Segment filename (e.g., 'clip1.mp4')
  * @param {string} [language] - Language code (ISO 639-1). Auto-detect if not provided
  * @param {string} [prompt] - Context prompt to improve accuracy
  * @returns {Object} Transcription result with text and metadata
@@ -487,7 +495,7 @@ router.post('/transcribe', uploadRateLimiter, upload.single('video'), async (req
  * @throws {500} If transcription fails
  * 
  * @example
- * POST /api/videos/transcribe-segment/segment_1_a1b2c3d4.mp4?language=en
+ * POST /api/videos/transcribe-segment/clip1.mp4?language=en
  * Response: {
  *   success: true,
  *   data: {
@@ -624,7 +632,7 @@ const summarizeSchema = z.object({
  * Useful for summarizing transcriptions that were created before automatic summarization was added.
  * 
  * @route POST /api/videos/summarize/:filename
- * @param {string} filename - Transcription filename (e.g., 'segment_1_uuid.txt')
+ * @param {string} filename - Transcription filename (e.g., 'clip1.txt')
  * @param {string} [videoId] - Video ID (optional, will search if not provided)
  * @param {number} [maxLength=100] - Maximum length of summary in words (10-500)
  * @param {string} [language] - Language for summary (ISO 639-1 code)
@@ -634,12 +642,12 @@ const summarizeSchema = z.object({
  * @throws {500} If summarization fails
  * 
  * @example
- * POST /api/videos/summarize/segment_1_uuid.txt?videoId=abc123&maxLength=150&style=bullet-points
+ * POST /api/videos/summarize/clip1.txt?videoId=abc123&maxLength=150&style=bullet-points
  * Response: {
  *   success: true,
  *   data: {
- *     transcriptionFile: 'segment_1_uuid.txt',
- *     summaryFile: 'segment_1_uuid_summary.txt',
+ *     transcriptionFile: 'clip1.txt',
+ *     summaryFile: 'clip1_summary.txt',
  *     summary: 'Summary text...'
  *   }
  * }
@@ -742,7 +750,7 @@ router.post('/summarize/:filename', async (req: Request, res: Response, next) =>
  * - Short catchy title (5-7 words)
  * 
  * @route POST /api/videos/social-media/:filename
- * @param {string} filename - Transcription filename (e.g., 'segment_1_uuid.txt')
+ * @param {string} filename - Transcription filename (e.g., 'clip1.txt')
  * @param {string} [videoId] - Video ID (optional, will search if not provided)
  * @param {number} [maxLength=150] - Maximum length of description in words (50-300)
  * @param {string} [language] - Language for content (ISO 639-1 code)
@@ -751,13 +759,13 @@ router.post('/summarize/:filename', async (req: Request, res: Response, next) =>
  * @throws {500} If generation fails
  * 
  * @example
- * POST /api/videos/social-media/segment_1_uuid.txt?videoId=abc123&maxLength=150
+ * POST /api/videos/social-media/clip1.txt?videoId=abc123&maxLength=150
  * Response: {
  *   success: true,
  *   data: {
- *     transcriptionFile: 'segment_1_uuid.txt',
- *     descriptionFile: 'segment_1_uuid_social_description.txt',
- *     titleFile: 'segment_1_uuid_social_title.txt',
+ *     transcriptionFile: 'clip1.txt',
+ *     descriptionFile: 'clip1_caption.txt',
+ *     titleFile: 'clip1_social_title.txt',
  *     description: 'Engaging description with hashtags...',
  *     title: 'Short Catchy Title Here'
  *   }
@@ -856,7 +864,7 @@ router.post('/social-media/:filename', async (req: Request, res: Response, next)
  * Reads the title from the corresponding _social_title.txt file.
  * 
  * @route POST /api/videos/add-title/:filename
- * @param {string} filename - Video filename (e.g., 'segment_1_uuid.mp4')
+ * @param {string} filename - Video filename (e.g., 'clip1.mp4')
  * @param {string} [videoId] - Video ID (optional, will search if not provided)
  * @param {string} [titleText] - Custom title text (optional, will use _social_title.txt if not provided)
  * @returns {Object} Result with path to video with title overlay
@@ -864,12 +872,12 @@ router.post('/social-media/:filename', async (req: Request, res: Response, next)
  * @throws {500} If overlay fails
  * 
  * @example
- * POST /api/videos/add-title/segment_1_uuid.mp4?videoId=abc123
+ * POST /api/videos/add-title/clip1.mp4?videoId=abc123
  * Response: {
  *   success: true,
  *   data: {
- *     originalVideo: 'segment_1_uuid.mp4',
- *     videoWithTitle: 'segment_1_uuid.mp4',
+ *     originalVideo: 'clip1.mp4',
+ *     videoWithTitle: 'clip1.mp4',
  *     message: 'Title overlay added successfully'
  *   }
  * }
@@ -975,18 +983,20 @@ router.post('/add-title/:filename', async (req: Request, res: Response, next) =>
     // Create temporary output path
     const tempOutputPath = videoPath.replace(/\.mp4$/, '_with_title_temp.mp4');
 
+    const fontFamily = (req.body.fontFamily || req.query.fontFamily || process.env.TITLE_FONT_FAMILY || 'Arial') as string;
+
     // Add title overlay - positioned in top black bar, centered horizontally
-    // Use sourceVideoPath (original backup if exists) to avoid duplicate overlays
     await addTextOverlayToVideo(sourceVideoPath, tempOutputPath, {
       text: titleText,
       position: 'top',
-      fontSize: 56, // Larger for better visibility
+      fontSize: 56,
       fontColor: 'white',
       backgroundColor: 'black',
-      backgroundColorOpacity: 0.8, // More opaque background for better readability
-      padding: 25, // More padding for better visibility
-      fontWeight: 'bold', // Bold font for better visibility
-      x: 0.5 // Center horizontally
+      backgroundColorOpacity: 0.8,
+      padding: 25,
+      fontWeight: 'bold',
+      fontFamily,
+      x: 0.5
     });
 
     // Replace original video with version that has title
@@ -1014,7 +1024,7 @@ router.post('/add-title/:filename', async (req: Request, res: Response, next) =>
  * Requires running backend/scripts/generateSpaceInvadersVideo.ts once to create assets/space_invaders_loop.mp4.
  *
  * @route POST /api/videos/add-game-overlay/:filename
- * @param {string} filename - Video filename (e.g., 'segment_1_uuid.mp4')
+ * @param {string} filename - Video filename (e.g., 'clip1.mp4')
  * @param {string} [videoId] - Video ID (optional, will search in processed/ if not provided)
  */
 router.post('/add-game-overlay/:filename', async (req: Request, res: Response, next) => {
@@ -1084,7 +1094,7 @@ router.post('/add-game-overlay/:filename', async (req: Request, res: Response, n
  * Use this for segments that were processed before the subtitle feature or when subtitles failed.
  *
  * @route POST /api/videos/add-subtitles/:filename
- * @param {string} filename - Segment filename (e.g., 'segment_1_uuid.mp4')
+ * @param {string} filename - Segment filename (e.g., 'clip1.mp4')
  * @param {string} [videoId] - Video ID (optional, will search in processed/ if not provided)
  */
 router.post('/add-subtitles/:filename', async (req: Request, res: Response, next) => {

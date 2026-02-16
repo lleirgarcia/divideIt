@@ -40,7 +40,7 @@ export function SegmentsList() {
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `segment_${segment.segmentNumber}.mp4`;
+      link.download = `clip${segment.segmentNumber}.mp4`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

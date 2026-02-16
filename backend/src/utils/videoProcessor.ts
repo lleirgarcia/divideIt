@@ -1,7 +1,6 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs/promises';
-import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger';
 import { transcriptionService } from '../services/transcriptionService';
 import { summarizationService } from '../services/summarizationService';
@@ -169,7 +168,7 @@ export const splitVideo = async (
 
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
-    const outputPath = path.join(outputDir, `segment_${i + 1}_${uuidv4()}.mp4`);
+    const outputPath = path.join(outputDir, `clip${i + 1}.mp4`);
 
     console.log(`\n🎞️  Processing segment ${i + 1}/${segments.length}`);
     console.log(`   Time range: ${segment.startTime.toFixed(2)}s - ${segment.endTime.toFixed(2)}s`);

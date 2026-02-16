@@ -23,7 +23,7 @@ After processing, each segment can have:
 - `segment_N_uuid.srt` – Subtitle file (SRT)
 - `segment_N_uuid.vtt` – Subtitle file (WebVTT)
 - `segment_N_uuid_summary.txt` – Summary
-- `segment_N_uuid_social_description.txt` – Social description
+- `clipN_caption.txt` – Caption / social description
 - `segment_N_uuid_social_title.txt` – Title used for overlay
 
 ## Using Subtitles

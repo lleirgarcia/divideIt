@@ -287,7 +287,7 @@ Video transcription:\n\n${text}`
 
     // Determine output file paths
     const basePath = txtFilePath.replace(/\.txt$/, '');
-    const descriptionPath = `${basePath}_social_description.txt`;
+    const descriptionPath = `${basePath}_caption.txt`;
     const titlePath = `${basePath}_social_title.txt`;
 
     // Write description and title to separate files

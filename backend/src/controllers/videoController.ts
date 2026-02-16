@@ -76,7 +76,7 @@ export const videoController = {
         maxDuration: req.body.maxDuration
       };
 
-      const segments = await videoService.splitVideo(
+      const { segments, videoId } = await videoService.splitVideo(
         video.originalPath,
         id,
         options
@@ -91,7 +91,7 @@ export const videoController = {
       res.status(200).json({
         success: true,
         data: {
-          videoId: id,
+          videoId,
           segments: segments.map(s => ({
             id: s.id,
             startTime: s.startTime,
