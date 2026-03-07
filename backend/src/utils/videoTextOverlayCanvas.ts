@@ -166,15 +166,17 @@ export async function generateSubtitleCueImage(
   outputPath: string,
   videoWidth: number = 1080,
   videoHeight: number = 1920,
-  previousText?: string
+  previousText?: string,
+  outputFormat: 'vertical' | 'horizontal' = 'vertical'
 ): Promise<{ imagePath: string; imageWidth: number; imageHeight: number }> {
+  const singleFontSize = outputFormat === 'horizontal' ? 15 : 10;
   if (!previousText?.trim()) {
     return generateTextImage(
       text,
       {
         text,
         position: 'bottom',
-        fontSize: 10,
+        fontSize: singleFontSize,
         fontColor: 'white',
         backgroundColor: 'black',
         backgroundColorOpacity: 0.75,
@@ -186,7 +188,7 @@ export async function generateSubtitleCueImage(
       videoHeight
     );
   }
-  return generateSubtitleCueImageWithPrevious(text, previousText.trim(), outputPath, videoWidth, videoHeight);
+  return generateSubtitleCueImageWithPrevious(text, previousText.trim(), outputPath, videoWidth, videoHeight, outputFormat);
 }
 
 /** Gap (px) between previous and current subtitle lines (small separation). */
@@ -223,11 +225,12 @@ async function generateSubtitleCueImageWithPrevious(
   previousText: string,
   outputPath: string,
   _videoWidth: number,
-  _videoHeight: number
+  _videoHeight: number,
+  outputFormat: 'vertical' | 'horizontal' = 'vertical'
 ): Promise<{ imagePath: string; imageWidth: number; imageHeight: number }> {
-  const prevSize = 5;
+  const prevSize = outputFormat === 'horizontal' ? 10 : 5;
   const prevPadding = 6;
-  const currSize = 10;
+  const currSize = outputFormat === 'horizontal' ? 15 : 10;
   const currPadding = 12;
   const [prev, curr] = await Promise.all([
     drawSubtitleLine(previousText, prevSize, prevPadding),
@@ -346,8 +349,8 @@ export async function addTextOverlayToVideo(
         '-map [out]',
         '-map 0:a?',
         '-c:v libx264',
-        '-preset fast',
-        '-crf 23',
+        '-preset slow',
+        '-crf 18',
         '-c:a copy',
         '-movflags +faststart',
         '-pix_fmt yuv420p'

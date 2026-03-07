@@ -45,23 +45,26 @@ function segmentsWithMinDuration(
 async function burnWithDrawtext(
   absoluteVideoPath: string,
   tempOutputPath: string,
-  segments: Array<{ start: number; end: number; text: string }>
+  segments: Array<{ start: number; end: number; text: string }>,
+  outputFormat: 'vertical' | 'horizontal' = 'vertical',
+  subtitleAtBottom: boolean = false
 ): Promise<boolean> {
   if (segments.length === 0) return false;
   const maxCues = 400;
   const cues = segments.slice(0, maxCues);
 
-  /** Main line: y=h-165, font 14. Previous line: 4px gap above => y=h-165-18 (font 7) ≈ h-183. */
-  const mainY = 100;
-  const prevY = 123;
+  const mainY    = outputFormat === 'horizontal' ? -40 : (subtitleAtBottom ? 35  : 100);
+  const prevY    = outputFormat === 'horizontal' ? -17 : (subtitleAtBottom ? 55  : 123);
+  const mainFont = outputFormat === 'horizontal' ? 19  : 14;
+  const prevFont = outputFormat === 'horizontal' ? 12  : 7;
   const filterParts = cues.map((s, i) => {
     const start = Number(s.start).toFixed(3);
     const end = Number(s.end).toFixed(3);
     const text = escapeDrawtext(s.text.trim());
-    const main = `drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-${mainY}:fontsize=14:fontcolor=white:borderw=2:bordercolor=black@0.9:box=1:boxcolor=black@0.75:boxborderw=12`;
+    const main = `drawtext=text='${text}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-${mainY}:fontsize=${mainFont}:fontcolor=white:borderw=2:bordercolor=black@0.9:box=1:boxcolor=black@0.75:boxborderw=12`;
     if (i === 0) return main;
     const prevText = escapeDrawtext(cues[i - 1].text.trim());
-    const prev = `drawtext=text='${prevText}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-${prevY}:fontsize=7:fontcolor=white@0.55:borderw=1:bordercolor=black@0.5:box=1:boxcolor=black@0.5:boxborderw=6`;
+    const prev = `drawtext=text='${prevText}':enable='between(t\\,${start}\\,${end})':x=(w-text_w)/2:y=h-${prevY}:fontsize=${prevFont}:fontcolor=white@0.55:borderw=1:bordercolor=black@0.5:box=1:boxcolor=black@0.5:boxborderw=6`;
     return `${prev},${main}`;
   });
   const filterStr = filterParts.join(',');
@@ -71,8 +74,8 @@ async function burnWithDrawtext(
       .videoFilters([filterStr])
       .outputOptions([
         '-c:v libx264',
-        '-preset fast',
-        '-crf 23',
+        '-preset slow',
+        '-crf 18',
         '-c:a copy',
         '-movflags +faststart',
         '-pix_fmt yuv420p',
@@ -99,7 +102,9 @@ async function burnWithCanvasOverlay(
   tempOutputPath: string,
   segments: Array<{ start: number; end: number; text: string }>,
   videoWidth: number,
-  videoHeight: number
+  videoHeight: number,
+  outputFormat: 'vertical' | 'horizontal' = 'vertical',
+  subtitleAtBottom: boolean = false
 ): Promise<boolean> {
   const maxCues = 350;
   const cues = segments.slice(0, maxCues);
@@ -111,7 +116,7 @@ async function burnWithCanvasOverlay(
       const s = cues[i];
       const pngPath = path.join(baseDir, `_sub_cue_${i}.png`);
       const prevText = i > 0 ? cues[i - 1].text.trim() : undefined;
-      await generateSubtitleCueImage(s.text.trim(), pngPath, videoWidth, videoHeight, prevText);
+      await generateSubtitleCueImage(s.text.trim(), pngPath, videoWidth, videoHeight, prevText, outputFormat);
       pngPaths.push(pngPath);
     }
 
@@ -124,7 +129,7 @@ async function burnWithCanvasOverlay(
       const curr = `[${i + 1}:v]`;
       const next = i === cues.length - 1 ? '[out]' : `[v${i + 1}]`;
       filterParts.push(
-        `${prev}${curr}overlay=x=(w-overlay_w)/2:y=h-overlay_h-100:enable='between(t\\,${start}\\,${end})'${next}`
+        `${prev}${curr}overlay=x=(w-overlay_w)/2:y=h-overlay_h${outputFormat === 'horizontal' ? '+40' : (subtitleAtBottom ? '-30' : '-100')}:enable='between(t\\,${start}\\,${end})'${next}`
       );
     }
     const filterStr = filterParts.join(';');
@@ -186,7 +191,9 @@ function getVideoDimensions(videoPath: string): Promise<{ width: number; height:
  */
 export async function burnSubtitlesIntoVideo(
   videoPath: string,
-  srtPath: string
+  srtPath: string,
+  outputFormat: 'vertical' | 'horizontal' = 'vertical',
+  subtitleAtBottom: boolean = false
 ): Promise<string> {
   const absoluteVideoPath = path.resolve(videoPath);
   const absoluteSrtPath = path.resolve(srtPath);
@@ -255,7 +262,7 @@ export async function burnSubtitlesIntoVideo(
   // 1) Prefer ASS (we control position: bottom center, two lines with small gap)
   const assPath = absoluteVideoPath.replace(/\.mp4$/, '_temp_subs.ass');
   try {
-    await fs.writeFile(assPath, segmentsToAssWithPreviousLine(segmentsForBurn), 'utf-8');
+    await fs.writeFile(assPath, segmentsToAssWithPreviousLine(segmentsForBurn, outputFormat, subtitleAtBottom), 'utf-8');
     const result = await trySubtitlesFilterWithFile(assPath, 'libass+ASS');
     await fs.unlink(assPath).catch(() => {});
     if (result !== null) {
@@ -273,7 +280,7 @@ export async function burnSubtitlesIntoVideo(
 
   // 3) Fallback: drawtext (no libass)
   logger.info('Trying drawtext fallback for subtitles');
-  let drawtextOk = await burnWithDrawtext(absoluteVideoPath, tempOutputPath, segmentsForBurn);
+  let drawtextOk = await burnWithDrawtext(absoluteVideoPath, tempOutputPath, segmentsForBurn, outputFormat, subtitleAtBottom);
   if (drawtextOk) {
     try {
       await fs.rename(tempOutputPath, absoluteVideoPath);
@@ -303,7 +310,9 @@ export async function burnSubtitlesIntoVideo(
     tempOutputPath,
     segmentsForBurn,
     dimensions.width,
-    dimensions.height
+    dimensions.height,
+    outputFormat,
+    subtitleAtBottom
   );
   if (!canvasOk) {
     return videoPath;

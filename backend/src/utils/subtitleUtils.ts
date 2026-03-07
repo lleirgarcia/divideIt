@@ -211,26 +211,35 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return header + lines.join('\n');
 }
 
-/** Main subtitle line: MarginV=205. Previous line with small gap (~15px) above => MarginV=82. */
-const ASS_PREVIOUS_MARGIN_V =200;
-const ASS_PREVIOUS_FONTSIZE = 5;
 /** ASS PrimaryColour for previous line: &HAABBGGRR — 80 = ~50% transparent white. */
 const ASS_PREVIOUS_COLOUR = '&H80FFFFFF';
+
+// Vertical (9:16) subtitle style — original position
+const ASS_VERTICAL        = { mainFontsize: 10, mainMarginV: 205, prevFontsize: 5,  prevMarginV: 200 };
+// Vertical (9:16) subtitle style — bottom position (for zoom-in clips)
+const ASS_VERTICAL_BOTTOM = { mainFontsize: 10, mainMarginV: 40,  prevFontsize: 5,  prevMarginV: 35  };
+// Horizontal (16:9) subtitle style — adjusted position
+const ASS_HORIZONTAL      = { mainFontsize: 15, mainMarginV: 65,  prevFontsize: 10, prevMarginV: 60  };
 
 /**
  * ASS content with two lines: current (main) and previous (small, 10px above).
  * While current segment is shown, the previous segment's text appears above in half size.
  */
-export function segmentsToAssWithPreviousLine(segments: SubtitleSegment[]): string {
+export function segmentsToAssWithPreviousLine(
+  segments: SubtitleSegment[],
+  outputFormat: 'vertical' | 'horizontal' = 'vertical',
+  subtitleAtBottom: boolean = false
+): string {
   if (!segments.length) return segmentsToAss(segments);
+  const s = outputFormat === 'horizontal' ? ASS_HORIZONTAL : (subtitleAtBottom ? ASS_VERTICAL_BOTTOM : ASS_VERTICAL);
   const header = `[Script Info]
 Title: divideIt subtitles
 ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,10,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,205,1
-Style: Previous,Arial,${ASS_PREVIOUS_FONTSIZE},${ASS_PREVIOUS_COLOUR},&H800000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,${ASS_PREVIOUS_MARGIN_V},1
+Style: Default,Arial,${s.mainFontsize},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,${s.mainMarginV},1
+Style: Previous,Arial,${s.prevFontsize},${ASS_PREVIOUS_COLOUR},&H800000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,${s.prevMarginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
