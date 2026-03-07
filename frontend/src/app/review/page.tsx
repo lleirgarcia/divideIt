@@ -89,11 +89,12 @@ export default function ReviewPage() {
   const [uploadedAll, setUploadedAll] = useState(false);
   const [driveStatus, setDriveStatus] = useState<{ configured: boolean; authenticated: boolean } | null>(null);
 
-  useEffect(() => {
-    getGoogleDriveStatus()
-      .then((s) => setDriveStatus(s))
-      .catch(() => setDriveStatus(null));
-  }, []);
+  // Google Drive disabled
+  // useEffect(() => {
+  //   getGoogleDriveStatus()
+  //     .then((s) => setDriveStatus(s))
+  //     .catch(() => setDriveStatus(null));
+  // }, []);
 
   useEffect(() => {
     if (segments.length === 0 || !videoId) return;

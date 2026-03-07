@@ -3,7 +3,6 @@
 import { VideoUploader } from '@/components/VideoUploader';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { SegmentsList } from '@/components/SegmentsList';
-import { GoogleDriveUpload } from '@/components/GoogleDriveUpload';
 import { AttentionLoop } from '@/components/AttentionLoop';
 import { DarkModeToggle } from '@/components/ui/DarkModeToggle';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -60,11 +59,13 @@ export default function Home() {
               </div>
             )}
 
+            {/* Google Drive upload disabled
             {hasSegments && (
               <section className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md">
                 <GoogleDriveUpload />
               </section>
             )}
+            */}
           </div>
         </div>
       </main>
