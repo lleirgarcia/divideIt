@@ -57,3 +57,6 @@ backend/test-video/
 # Logs
 logs/
 *.log
+
+# Project Memory Agent
+.project-memory/

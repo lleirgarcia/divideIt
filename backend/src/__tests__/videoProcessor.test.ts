@@ -1,4 +1,4 @@
-import { generateRandomSegments } from '../utils/videoProcessor';
+import { generateRandomSegments, getOutputDimensions } from '../utils/videoProcessor';
 
 describe('Video Processor', () => {
   describe('generateRandomSegments', () => {
@@ -47,6 +47,29 @@ describe('Video Processor', () => {
       for (let i = 1; i < segments.length; i++) {
         expect(segments[i].startTime).toBeGreaterThanOrEqual(segments[i - 1].startTime);
       }
+    });
+  });
+
+  describe('getOutputDimensions', () => {
+    it('devuelve 1080x1920 para formato vertical', () => {
+      const dims = getOutputDimensions('vertical');
+      expect(dims).toEqual({ width: 1080, height: 1920 });
+    });
+
+    it('devuelve 1920x1080 para formato horizontal', () => {
+      const dims = getOutputDimensions('horizontal');
+      expect(dims).toEqual({ width: 1920, height: 1080 });
+    });
+
+    it('usa vertical como formato por defecto', () => {
+      const dims = getOutputDimensions();
+      expect(dims).toEqual({ width: 1080, height: 1920 });
+    });
+
+    it('lanza error para un formato desconocido', () => {
+      expect(() => getOutputDimensions('cuadrado' as any)).toThrow(
+        /outputFormat/
+      );
     });
   });
 });
