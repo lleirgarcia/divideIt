@@ -6,7 +6,9 @@ import { uploadRateLimiter } from '../middleware/rateLimiter';
 import {
   getVideoMetadata,
   generateRandomSegments,
-  splitVideo
+  splitVideo,
+  OutputFormat,
+  AnimationOption
 } from '../utils/videoProcessor';
 import { logger } from '../utils/logger';
 import { createError } from '../middleware/errorHandler';
@@ -58,7 +60,9 @@ const upload = multer({
 const splitVideoSchema = z.object({
   segmentCount: z.number().int().min(1).max(20).optional().default(5),
   minSegmentDuration: z.number().min(1).max(300).optional().default(5),
-  maxSegmentDuration: z.number().min(1).max(300).optional().default(60)
+  maxSegmentDuration: z.number().min(1).max(300).optional().default(60),
+  outputFormat: z.enum(['vertical', 'horizontal']).optional().default('vertical'),
+  animation: z.enum(['space_invaders', 'none']).optional().default('none')
 });
 
 /**
@@ -178,7 +182,9 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
     const validation = splitVideoSchema.safeParse({
       segmentCount: req.body.segmentCount ? parseInt(req.body.segmentCount) : undefined,
       minSegmentDuration: req.body.minSegmentDuration ? parseFloat(req.body.minSegmentDuration) : undefined,
-      maxSegmentDuration: req.body.maxSegmentDuration ? parseFloat(req.body.maxSegmentDuration) : undefined
+      maxSegmentDuration: req.body.maxSegmentDuration ? parseFloat(req.body.maxSegmentDuration) : undefined,
+      outputFormat: req.body.outputFormat || undefined,
+      animation: req.body.animation || undefined
     });
 
     if (!validation.success) {
@@ -186,7 +192,7 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
       throw createError(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
     }
 
-    const { segmentCount, minSegmentDuration, maxSegmentDuration } = validation.data;
+    const { segmentCount, minSegmentDuration, maxSegmentDuration, outputFormat, animation } = validation.data;
     console.log(`⚙️  Split settings:`);
     console.log(`   - Segment count: ${segmentCount}`);
     console.log(`   - Min duration: ${minSegmentDuration}s`);
@@ -242,7 +248,7 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
     // Split video
     console.log(`✂️  Starting video split process...`);
     logger.info(`Splitting video into ${segments.length} segments`);
-    const outputSegments = await splitVideo(videoPath, outputDir, segments);
+    const outputSegments = await splitVideo(videoPath, outputDir, segments, { outputFormat: outputFormat as OutputFormat, animation: animation as AnimationOption });
     console.log(`✅ Video split completed successfully!`);
     console.log(`📦 Created ${outputSegments.length} segment files`);
 

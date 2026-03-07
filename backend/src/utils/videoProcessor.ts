@@ -4,10 +4,27 @@ import fs from 'fs/promises';
 import { logger } from './logger';
 import { transcriptionService } from '../services/transcriptionService';
 import { summarizationService } from '../services/summarizationService';
-import { addTitleToVideo } from './videoTextOverlayCanvas';
 import { mergeSubtitleSegments, formatSegmentsToSrtRaw, formatSegmentsToVttRaw } from './subtitleUtils';
+import { addTitleToVideo } from './videoTextOverlayCanvas';
 import { burnSubtitlesIntoVideo } from './subtitleBurner';
 import { alignSubtitleSegmentsToVideo, trimSegmentsToSoundOnly, addSilenceSegments } from './audioSyncUtils';
+import { addGameOverlayToVideo } from './addGameOverlayToVideo';
+
+export type OutputFormat = 'vertical' | 'horizontal';
+
+export interface OutputDimensions {
+  width: number;
+  height: number;
+}
+
+export function getOutputDimensions(format: OutputFormat = 'vertical'): OutputDimensions {
+  switch (format) {
+    case 'vertical':   return { width: 1080, height: 1920 };
+    case 'horizontal': return { width: 1920, height: 1080 };
+    default:
+      throw new Error(`outputFormat desconocido: "${format}". Debe ser 'vertical' o 'horizontal'.`);
+  }
+}
 
 export interface VideoMetadata {
   duration: number;
@@ -157,12 +174,38 @@ export const generateRandomSegments = (
  * const segments = [{startTime: 0, endTime: 10, duration: 10}, ...];
  * const outputSegments = await splitVideo('./video.mp4', './output', segments);
  */
+export type AnimationOption = 'space_invaders' | 'none';
+
 export const splitVideo = async (
   inputPath: string,
   outputDir: string,
-  segments: Array<{ startTime: number; endTime: number; duration: number }>
+  segments: Array<{ startTime: number; endTime: number; duration: number }>,
+  options: { outputFormat?: OutputFormat; animation?: AnimationOption } = {}
 ): Promise<VideoSegment[]> => {
   await fs.mkdir(outputDir, { recursive: true });
+
+  const { width: targetWidth, height: targetHeight } = getOutputDimensions(options.outputFormat);
+  const isVertical = (options.outputFormat ?? 'vertical') === 'vertical';
+  const animation = options.animation ?? 'none';
+
+  // Transcribe the full original video and save in the output folder
+  const originalTranscriptionPath = path.join(outputDir, 'original_transcription.txt');
+  try {
+    console.log('🎤 Transcribing full original video...');
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Transcription timeout (60s)')), 60_000)
+    );
+    const originalTranscription = await Promise.race([
+      transcriptionService.transcribe(inputPath, {}),
+      timeout
+    ]);
+    await fs.writeFile(originalTranscriptionPath, originalTranscription.text, 'utf-8');
+    console.log(`📝 Original transcription saved: ${originalTranscriptionPath}`);
+    logger.info(`Original video transcription saved: ${originalTranscriptionPath}`);
+  } catch (err) {
+    console.warn(`⚠️  Could not transcribe original video: ${err instanceof Error ? err.message : err}`);
+    logger.warn(`Original video transcription failed: ${err}`);
+  }
 
   const outputSegments: VideoSegment[] = [];
 
@@ -176,26 +219,25 @@ export const splitVideo = async (
     console.log(`   Output: ${outputPath}`);
 
     await new Promise<void>((resolve, reject) => {
-      // Target resolution for 9:16 format (1080x1920 - Full HD vertical)
-      const targetWidth = 1080;
-      const targetHeight = 1920;
+      const videoFilters = [
+        `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=lanczos`,
+        `pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black`,
+        // zoom-in: scale up then center-crop to target, lanczos for best upscale quality
+        ...(isVertical && animation === 'none' ? [
+          `scale=${Math.round(targetWidth * 3.8 / 2) * 2}:${Math.round(targetHeight * 3.8 / 2) * 2}:flags=lanczos`,
+          `crop=${targetWidth}:${targetHeight}`
+        ] : [])
+      ];
 
       ffmpeg(inputPath)
         .setStartTime(segment.startTime)
         .setDuration(segment.duration)
-        .videoFilters([
-          // Scale video to fit within 9:16 area while maintaining aspect ratio
-          // This ensures no part of the video is cropped
-          `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease`,
-          // Add black bars (padding) to fill remaining space and center the video
-          // This maintains the entire image visible within the 9:16 frame
-          `pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black`
-        ])
+        .videoFilters(videoFilters)
         .outputOptions([
           '-c:v libx264',
           '-c:a aac',
-          '-preset fast',
-          '-crf 23',
+          '-preset slow',
+          '-crf 18',
           '-movflags +faststart',
           '-pix_fmt yuv420p'
         ])
@@ -227,7 +269,9 @@ export const splitVideo = async (
             console.log(`   📝 Transcription saved: ${txtPath}`);
             logger.info(`Transcription saved for segment ${i + 1}: ${txtPath}`);
 
-            // 1) Align, 2) trim to speech only, 3) merge 5 words, 4) add silence cues so SRT covers full timeline, 5) burn (only text cues)
+            // 1) Align, 2) trim to speech only, 3) merge 5 words, 4) add silence cues, 5) write SRT/VTT
+            // Subtitle burn happens later: immediately for zoom, after game overlay for space_invaders
+            let pendingSrtPath: string | null = null;
             if (transcription.segments?.length) {
               try {
                 const aligned = await alignSubtitleSegmentsToVideo(transcription.segments, outputPath);
@@ -240,11 +284,15 @@ export const splitVideo = async (
                 await fs.writeFile(vttPath, formatSegmentsToVttRaw(withSilence), 'utf-8');
                 console.log(`   📄 Subtitles saved: ${path.basename(srtPath)}, ${path.basename(vttPath)}`);
                 logger.info(`Subtitles saved for segment ${i + 1}: ${srtPath}`);
+                pendingSrtPath = srtPath;
 
-                console.log(`   📄 Burning subtitles into MP4...`);
-                await burnSubtitlesIntoVideo(outputPath, srtPath);
-                console.log(`   ✅ MP4 created with embedded subtitles`);
-                logger.info(`Subtitles burned into segment ${i + 1}: ${outputPath}`);
+                // Burn subtitles now only when NOT using space_invaders (game overlay would cover them)
+                if (animation !== 'space_invaders') {
+                  console.log(`   📄 Burning subtitles into MP4...`);
+                  await burnSubtitlesIntoVideo(outputPath, srtPath, options.outputFormat ?? 'vertical', isVertical && animation === 'none');
+                  console.log(`   ✅ MP4 created with embedded subtitles`);
+                  logger.info(`Subtitles burned into segment ${i + 1}: ${outputPath}`);
+                }
               } catch (subErr) {
                 console.warn(`   ⚠️  Subtitles/subs burn failed: ${subErr instanceof Error ? subErr.message : 'Unknown'}`);
                 logger.warn(`Subtitle write or burn failed for segment ${i + 1}: ${subErr}`);
@@ -263,7 +311,7 @@ export const splitVideo = async (
                 });
                 console.log(`   ✅ Summary saved: ${summaryPath}`);
                 logger.info(`Summary saved for segment ${i + 1}: ${summaryPath}`);
-                
+
                 // Generate social media content (description + title) for TikTok/Instagram
                 try {
                   console.log(`   📱 Generating social media content for segment ${i + 1}...`);
@@ -275,31 +323,49 @@ export const splitVideo = async (
                   console.log(`      - Description: ${path.basename(socialContent.descriptionPath)}`);
                   console.log(`      - Title: ${path.basename(socialContent.titlePath)}`);
                   logger.info(`Social media content saved for segment ${i + 1}`);
-                  
-                  // Add title overlay to video in the top black bar area
-                  try {
-                    console.log(`   🎬 Adding title overlay to video segment ${i + 1}...`);
-                    
-                    // Create backup of original video before adding title (to prevent duplicate overlays)
-                    const originalBackupPath = outputPath.replace(/\.mp4$/, '_original_no_title.mp4');
+
+                  // Titulo overlay solo en vertical con animacion (no en zoom)
+                  if (isVertical && animation === 'space_invaders') {
                     try {
-                      await fs.copyFile(outputPath, originalBackupPath);
-                      logger.info(`Created backup of original video: ${path.basename(originalBackupPath)}`);
-                    } catch (backupError) {
-                      logger.warn(`Failed to create backup: ${backupError}`);
+                      console.log(`   🎬 Adding title overlay to video segment ${i + 1}...`);
+                      const originalBackupPath = outputPath.replace(/\.mp4$/, '_original_no_title.mp4');
+                      await fs.copyFile(outputPath, originalBackupPath).catch(() => {});
+                      const videoWithTitlePath = await addTitleToVideo(outputPath, socialContent.titlePath);
+                      await fs.rename(videoWithTitlePath, outputPath);
+                      console.log(`   ✅ Title overlay added to video: ${path.basename(outputPath)}`);
+                      logger.info(`Title overlay added to segment ${i + 1}: ${outputPath}`);
+                    } catch (overlayError) {
+                      console.warn(`   ⚠️  Failed to add title overlay to segment ${i + 1}: ${overlayError instanceof Error ? overlayError.message : 'Unknown error'}`);
+                      logger.warn(`Failed to add title overlay to segment ${i + 1}: ${overlayError}`);
                     }
-                    
-                    const videoWithTitlePath = await addTitleToVideo(outputPath, socialContent.titlePath);
-                    
-                    // Replace original video with version that has title
-                    await fs.rename(videoWithTitlePath, outputPath);
-                    
-                    console.log(`   ✅ Title overlay added to video: ${path.basename(outputPath)}`);
-                    logger.info(`Title overlay added to segment ${i + 1}: ${outputPath}`);
-                  } catch (overlayError) {
-                    // Log error but don't fail the entire process
-                    console.warn(`   ⚠️  Failed to add title overlay to segment ${i + 1}: ${overlayError instanceof Error ? overlayError.message : 'Unknown error'}`);
-                    logger.warn(`Failed to add title overlay to segment ${i + 1}: ${overlayError}`);
+
+                    // Space Invaders overlay (vertical only, when animation=space_invaders)
+                    if (animation === 'space_invaders') {
+                      try {
+                        console.log(`   👾 Adding Space Invaders overlay to segment ${i + 1}...`);
+                        const tempOut = outputPath.replace(/\.mp4$/, '_game_temp.mp4');
+                        await addGameOverlayToVideo(path.resolve(outputPath), tempOut);
+                        await fs.rename(tempOut, outputPath);
+                        console.log(`   ✅ Space Invaders overlay added to segment ${i + 1}`);
+                        logger.info(`Space Invaders overlay added to segment ${i + 1}: ${outputPath}`);
+                      } catch (gameErr) {
+                        console.warn(`   ⚠️  Failed to add game overlay to segment ${i + 1}: ${gameErr instanceof Error ? gameErr.message : 'Unknown error'}`);
+                        logger.warn(`Failed to add game overlay to segment ${i + 1}: ${gameErr}`);
+                      }
+
+                      // Burn subtitles AFTER game overlay so they appear on top
+                      if (pendingSrtPath) {
+                        try {
+                          console.log(`   📄 Burning subtitles on top of game overlay...`);
+                          await burnSubtitlesIntoVideo(outputPath, pendingSrtPath, options.outputFormat ?? 'vertical', false);
+                          console.log(`   ✅ MP4 created with embedded subtitles`);
+                          logger.info(`Subtitles burned (post-game-overlay) for segment ${i + 1}: ${outputPath}`);
+                        } catch (burnErr) {
+                          console.warn(`   ⚠️  Subtitle burn failed: ${burnErr instanceof Error ? burnErr.message : 'Unknown'}`);
+                          logger.warn(`Subtitle burn failed for segment ${i + 1}: ${burnErr}`);
+                        }
+                      }
+                    }
                   }
                 } catch (socialError) {
                   // Log error but don't fail the entire process
@@ -317,7 +383,7 @@ export const splitVideo = async (
             console.warn(`   ⚠️  Failed to transcribe segment ${i + 1}: ${transcriptionError instanceof Error ? transcriptionError.message : 'Unknown error'}`);
             logger.warn(`Failed to transcribe segment ${i + 1}: ${transcriptionError}`);
           }
-          
+
           resolve();
         })
         .on('error', (err) => {

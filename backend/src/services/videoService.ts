@@ -4,10 +4,11 @@ import fs from 'fs/promises';
 import { logger } from '../utils/logger';
 import { transcriptionService } from './transcriptionService';
 import { summarizationService } from './summarizationService';
-import { addTitleToVideo } from '../utils/videoTextOverlayCanvas';
 import { mergeSubtitleSegments, formatSegmentsToSrtRaw, formatSegmentsToVttRaw } from '../utils/subtitleUtils';
 import { burnSubtitlesIntoVideo } from '../utils/subtitleBurner';
 import { alignSubtitleSegmentsToVideo, trimSegmentsToSoundOnly, addSilenceSegments } from '../utils/audioSyncUtils';
+import { OutputFormat, getOutputDimensions } from '../utils/videoProcessor';
+import { addTitleToVideo } from '../utils/videoTextOverlayCanvas';
 
 export interface VideoMetadata {
   duration: number;
@@ -125,13 +126,15 @@ export class VideoService {
       numSegments?: number;
       minDuration?: number;
       maxDuration?: number;
+      outputFormat?: OutputFormat;
     } = {}
   ): Promise<{ segments: VideoSegment[]; videoId: string }> {
     const metadata = await this.getVideoMetadata(inputPath);
     const {
       numSegments = 3,
       minDuration = 5,
-      maxDuration = 60
+      maxDuration = 60,
+      outputFormat = 'vertical'
     } = options;
 
     const segments = this.generateRandomSegments(
@@ -153,6 +156,23 @@ export class VideoService {
     const videoDir = path.join(this.processedDir, timestamp);
     await fs.mkdir(videoDir, { recursive: true });
 
+    // Transcribe the full original video and save in the output folder
+    const originalTranscriptionPath = path.join(videoDir, 'original_transcription.txt');
+    try {
+      logger.info('Transcribing full original video...');
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Transcription timeout (60s)')), 60_000)
+      );
+      const originalTranscription = await Promise.race([
+        transcriptionService.transcribe(inputPath, {}),
+        timeout
+      ]);
+      await fs.writeFile(originalTranscriptionPath, originalTranscription.text, 'utf-8');
+      logger.info(`Original video transcription saved: ${originalTranscriptionPath}`);
+    } catch (err) {
+      logger.warn(`Original video transcription failed: ${err}`);
+    }
+
     const videoSegments: VideoSegment[] = [];
 
     // Process segments sequentially to avoid overwhelming the system
@@ -160,7 +180,7 @@ export class VideoService {
       const segment = segments[i];
       const outputPath = path.join(videoDir, `clip${i + 1}.mp4`);
 
-      await this.extractSegment(inputPath, segment.start, segment.end, outputPath);
+      await this.extractSegment(inputPath, segment.start, segment.end, outputPath, outputFormat);
 
       // Transcribe the segment and save to .txt file
       try {
@@ -184,7 +204,7 @@ export class VideoService {
             await fs.writeFile(srtPath, formatSegmentsToSrtRaw(withSilence), 'utf-8');
             await fs.writeFile(outputPath.replace(/\.mp4$/, '.vtt'), formatSegmentsToVttRaw(withSilence), 'utf-8');
             logger.info(`Subtitles saved for segment ${i + 1}: ${srtPath}`);
-            await burnSubtitlesIntoVideo(outputPath, srtPath);
+            await burnSubtitlesIntoVideo(outputPath, srtPath, outputFormat);
             logger.info(`MP4 created with embedded subtitles for segment ${i + 1}`);
           } catch (subErr) {
             logger.warn(`Subtitle write or burn failed for segment ${i + 1}: ${subErr}`);
@@ -211,29 +231,19 @@ export class VideoService {
                 language: 'es'
               });
               logger.info(`Social media content saved for segment ${i + 1}: ${socialContent.descriptionPath} and ${socialContent.titlePath}`);
-              
-              // Add title overlay to video in the top black bar area
-              try {
-                logger.info(`Adding title overlay to video segment ${i + 1}...`);
-                
-                // Create backup of original video before adding title (to prevent duplicate overlays)
-                const originalBackupPath = outputPath.replace(/\.mp4$/, '_original_no_title.mp4');
+
+              // Titulo overlay solo en vertical
+              if (outputFormat === 'vertical') {
                 try {
-                  await fs.copyFile(outputPath, originalBackupPath);
-                  logger.info(`Created backup of original video: ${path.basename(originalBackupPath)}`);
-                } catch (backupError) {
-                  logger.warn(`Failed to create backup: ${backupError}`);
+                  logger.info(`Adding title overlay to video segment ${i + 1}...`);
+                  const originalBackupPath = outputPath.replace(/\.mp4$/, '_original_no_title.mp4');
+                  await fs.copyFile(outputPath, originalBackupPath).catch(() => {});
+                  const videoWithTitlePath = await addTitleToVideo(outputPath, socialContent.titlePath);
+                  await fs.rename(videoWithTitlePath, outputPath);
+                  logger.info(`Title overlay added to segment ${i + 1}: ${outputPath}`);
+                } catch (overlayError) {
+                  logger.warn(`Failed to add title overlay to segment ${i + 1}: ${overlayError instanceof Error ? overlayError.message : 'Unknown error'}`);
                 }
-                
-                const videoWithTitlePath = await addTitleToVideo(outputPath, socialContent.titlePath);
-                
-                // Replace original video with version that has title
-                await fs.rename(videoWithTitlePath, outputPath);
-                
-                logger.info(`Title overlay added to segment ${i + 1}: ${outputPath}`);
-              } catch (overlayError) {
-                // Log error but don't fail the entire process
-                logger.warn(`Failed to add title overlay to segment ${i + 1}: ${overlayError instanceof Error ? overlayError.message : 'Unknown error'}`);
               }
             } catch (socialError) {
               // Log error but don't fail the entire process
@@ -273,12 +283,11 @@ export class VideoService {
     inputPath: string,
     startTime: number,
     endTime: number,
-    outputPath: string
+    outputPath: string,
+    outputFormat: OutputFormat = 'vertical'
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Target resolution for 9:16 format (1080x1920 - Full HD vertical)
-      const targetWidth = 1080;
-      const targetHeight = 1920;
+      const { width: targetWidth, height: targetHeight } = getOutputDimensions(outputFormat);
 
       ffmpeg(inputPath)
         .setStartTime(startTime)
@@ -293,10 +302,10 @@ export class VideoService {
         ])
         .outputOptions([
           '-c:v libx264',
-          '-preset fast',
-          '-crf 23',
+          '-preset slow',
+          '-crf 18',
           '-c:a aac',
-          '-b:a 128k',
+          '-b:a 192k',
           '-movflags +faststart',
           '-pix_fmt yuv420p'
         ])
