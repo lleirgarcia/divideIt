@@ -18,7 +18,7 @@ const initializeGoogleDrive = () => {
 
   const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI || 'http://localhost:3051/api/google-drive/oauth/callback';
+  const redirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI || 'http://localhost:4051/api/google-drive/oauth/callback';
   const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
 
   if (!clientId || !clientSecret) {

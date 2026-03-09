@@ -11,14 +11,14 @@ import { healthRoutes } from './routes/healthRoutes';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3051;
+const PORT = process.env.PORT || 4051;
 
 // Security middleware
 app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3050',
+  origin: process.env.FRONTEND_URL || 'http://localhost:4050',
   credentials: true
 }));
 

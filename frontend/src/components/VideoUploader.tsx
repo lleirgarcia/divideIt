@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useVideoStore } from '@/store/videoStore';
-import { splitVideo } from '@/services/api';
+import { splitVideo, moveToUploadQueue } from '@/services/api';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
@@ -11,12 +11,14 @@ import { Input } from './ui/Input';
 import { LoadingSkeleton } from './ui/LoadingSkeleton';
 
 export function VideoUploader() {
-  const { setVideoFile, setIsProcessing, setSegments, setVideoId, setError, videoFile, isProcessing } = useVideoStore();
+  const { setVideoFile, setIsProcessing, setSegments, setVideoId, setAccount, setError, videoFile, isProcessing, videoId } = useVideoStore();
+  const [isSendingToQueue, setIsSendingToQueue] = useState(false);
   const [segmentCount, setSegmentCount] = useState('');
   const [minDuration, setMinDuration] = useState('30');
   const [maxDuration, setMaxDuration] = useState('50');
   const [outputFormat, setOutputFormat] = useState<'vertical' | 'horizontal'>('vertical');
   const [animation, setAnimation] = useState<'space_invaders' | 'none'>('none');
+  const [account, setLocalAccount] = useState<'aqualityguy' | 'agenticcmonkey'>('aqualityguy');
   const [fileError, setFileError] = useState<string | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
@@ -95,12 +97,14 @@ export function VideoUploader() {
       formData.append('minSegmentDuration', String(minD));
       formData.append('maxSegmentDuration', String(maxD));
       formData.append('outputFormat', outputFormat);
+      formData.append('account', account);
       if (outputFormat === 'vertical') {
         formData.append('animation', animation);
       }
 
       const response = await splitVideo(formData);
       setVideoId(response.data.videoId);
+      setAccount(account);
       setSegments(response.data.segments);
       toast.success(`Successfully created ${response.data.segments.length} segments!`);
     } catch (error: any) {
@@ -368,6 +372,30 @@ export function VideoUploader() {
                 </div>
               )}
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Account
+                </label>
+                <div className="flex gap-3">
+                  {(['aqualityguy', 'agenticcmonkey'] as const).map((acc) => (
+                    <button
+                      key={acc}
+                      type="button"
+                      onClick={() => setLocalAccount(acc)}
+                      className={clsx(
+                        'flex-1 rounded-lg border-2 py-3 px-4 text-sm font-medium transition-all',
+                        account === acc
+                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 ring-1 ring-primary-500'
+                          : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                      )}
+                      aria-pressed={account === acc}
+                    >
+                      @{acc}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <Button
                 onClick={handleSplit}
                 isLoading={isProcessing}
@@ -377,8 +405,36 @@ export function VideoUploader() {
               >
                 Split Video
               </Button>
+
             </>
           )}
+        </div>
+      )}
+
+      {videoId && (
+        <div className="rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-900/20 p-4">
+          <p className="text-sm text-green-700 dark:text-green-300 mb-3 font-medium">
+            Clips generados para <span className="font-bold">@{account}</span>. ¿Enviarlos a la cola de subida?
+          </p>
+          <Button
+            onClick={async () => {
+              setIsSendingToQueue(true);
+              try {
+                await moveToUploadQueue(videoId, account);
+                toast.success(`Clips enviados a la cola de @${account}`);
+              } catch (err: any) {
+                toast.error(err.response?.data?.error?.message || 'Error al mover clips');
+              } finally {
+                setIsSendingToQueue(false);
+              }
+            }}
+            isLoading={isSendingToQueue}
+            disabled={isSendingToQueue}
+            className="w-full"
+            aria-label="Send clips to upload queue"
+          >
+            Send to Upload Queue (@{account})
+          </Button>
         </div>
       )}
     </div>

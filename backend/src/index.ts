@@ -17,7 +17,7 @@ import { logger } from './utils/logger';
 import { ensureDirectoryExists } from './utils/fileUtils';
 
 const app = express();
-const PORT = process.env.PORT || 3051;
+const PORT = process.env.PORT || 4051;
 
 // Initialize directories
 const initializeDirectories = async () => {
@@ -31,7 +31,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3050',
+  origin: process.env.FRONTEND_URL || 'http://localhost:4050',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']

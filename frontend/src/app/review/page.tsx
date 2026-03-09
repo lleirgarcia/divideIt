@@ -27,7 +27,7 @@ function SegmentCard({
   summaryText: string;
 }) {
   const filename = segment.downloadUrl.split('/').pop() || '';
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3051';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4051';
   const videoSrc = videoId ? `${apiUrl}/api/videos/download/${filename}?videoId=${videoId}` : `${apiUrl}${segment.downloadUrl}`;
 
   return (

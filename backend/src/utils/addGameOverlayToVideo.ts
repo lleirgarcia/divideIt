@@ -20,11 +20,24 @@ import { logger } from './logger';
 const BOTTOM_BAND_HEIGHT_RATIO = 3.6;
 /** Fraction of frame width for the game band. 1 = full width, 0.8 = 80% (centered). */
 const BOTTOM_BAND_WIDTH_RATIO = 3.3;
-const GAME_VIDEO_NAME = 'space_invaders_loop.mp4';
+const GAME_VIDEO_NAMES = [
+  'space_invaders_classic.mp4',
+  'space_invaders_neon.mp4',
+  'space_invaders_fire.mp4',
+  'space_invaders_ice.mp4',
+  'space_invaders_gold.mp4',
+];
+const GAME_VIDEO_FALLBACK = 'space_invaders_loop.mp4';
 
-function getGameOverlayPath(): string {
+async function getGameOverlayPath(): Promise<string> {
   const assetsDir = path.resolve(__dirname, '../../assets');
-  return path.join(assetsDir, GAME_VIDEO_NAME);
+  // Pick a random theme from the available ones; fall back to classic/loop if none exist
+  const shuffled = [...GAME_VIDEO_NAMES].sort(() => Math.random() - 0.5);
+  for (const name of shuffled) {
+    const p = path.join(assetsDir, name);
+    try { await fs.access(p); return p; } catch { /* not generated yet */ }
+  }
+  return path.join(assetsDir, GAME_VIDEO_FALLBACK);
 }
 
 /** Parse HH:MM:SS.ms or MM:SS.ms to seconds */
@@ -46,12 +59,12 @@ export async function addGameOverlayToVideo(
   inputPath: string,
   outputPath?: string
 ): Promise<string> {
-  const gamePath = getGameOverlayPath();
+  const gamePath = await getGameOverlayPath();
   try {
     await fs.access(gamePath);
   } catch {
     throw new Error(
-      `Game overlay video not found at ${gamePath}. Run: npx tsx backend/scripts/generateSpaceInvadersVideo.ts`
+      `Game overlay video not found at ${gamePath}. Run: npx tsx scripts/generateSpaceInvadersVideo.ts`
     );
   }
 

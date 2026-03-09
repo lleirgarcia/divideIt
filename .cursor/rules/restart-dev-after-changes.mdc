@@ -9,8 +9,8 @@ When you edit backend or frontend source code (e.g. `backend/src/**`, `frontend/
 
 Do it without the user asking:
 
-1. Kill processes on ports 3051 (backend) and 3050 (frontend):
-   `lsof -ti :3051 2>/dev/null | xargs kill -9 2>/dev/null; lsof -ti :3050 2>/dev/null | xargs kill -9 2>/dev/null; sleep 2`
+1. Kill processes on ports 4051 (backend) and 4050 (frontend):
+   `lsof -ti :4051 2>/dev/null | xargs kill -9 2>/dev/null; lsof -ti :4050 2>/dev/null | xargs kill -9 2>/dev/null; sleep 2`
 2. Start dev from repo root in background:
    `cd /path/to/divideIt && PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH" npm run dev`
    (use `is_background: true`)

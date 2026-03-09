@@ -30,12 +30,14 @@ interface VideoState {
   videoFile: File | null;
   videoUrl: string | null;
   videoId: string | null;
+  account: string | null;
   segments: VideoSegment[];
   isProcessing: boolean;
   error: string | null;
   setVideoFile: (file: File | null) => void;
   setVideoUrl: (url: string | null) => void;
   setVideoId: (videoId: string | null) => void;
+  setAccount: (account: string | null) => void;
   setSegments: (segments: VideoSegment[]) => void;
   setIsProcessing: (isProcessing: boolean) => void;
   setError: (error: string | null) => void;
@@ -61,6 +63,7 @@ export const useVideoStore = create<VideoState>((set) => ({
   videoFile: null,
   videoUrl: null,
   videoId: null,
+  account: null,
   segments: [],
   isProcessing: false,
   error: null,
@@ -74,6 +77,7 @@ export const useVideoStore = create<VideoState>((set) => ({
   },
   setVideoUrl: (url) => set({ videoUrl: url }),
   setVideoId: (videoId) => set({ videoId }),
+  setAccount: (account) => set({ account }),
   setSegments: (segments) => set({ segments }),
   setIsProcessing: (isProcessing) => set({ isProcessing }),
   setError: (error) => set({ error }),
@@ -81,6 +85,7 @@ export const useVideoStore = create<VideoState>((set) => ({
     videoFile: null,
     videoUrl: null,
     videoId: null,
+    account: null,
     segments: [],
     isProcessing: false,
     error: null,

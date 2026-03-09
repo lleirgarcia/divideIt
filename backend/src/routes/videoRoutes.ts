@@ -8,8 +8,11 @@ import {
   generateRandomSegments,
   splitVideo,
   OutputFormat,
-  AnimationOption
+  AnimationOption,
+  Preset,
+  PRESETS
 } from '../utils/videoProcessor';
+import { moveToUploadQueue } from '../utils/moveToUploadQueue';
 import { logger } from '../utils/logger';
 import { createError } from '../middleware/errorHandler';
 import { transcriptionService } from '../services/transcriptionService';
@@ -62,7 +65,9 @@ const splitVideoSchema = z.object({
   minSegmentDuration: z.number().min(1).max(300).optional().default(5),
   maxSegmentDuration: z.number().min(1).max(300).optional().default(60),
   outputFormat: z.enum(['vertical', 'horizontal']).optional().default('vertical'),
-  animation: z.enum(['space_invaders', 'none']).optional().default('none')
+  animation: z.enum(['space_invaders', 'none']).optional().default('none'),
+  preset: z.enum(['tiktok', 'instagram', 'instagram_zoom', 'youtube_shorts']).optional(),
+  account: z.enum(['aqualityguy', 'agenticcmonkey']).optional().default('aqualityguy')
 });
 
 /**
@@ -184,7 +189,9 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
       minSegmentDuration: req.body.minSegmentDuration ? parseFloat(req.body.minSegmentDuration) : undefined,
       maxSegmentDuration: req.body.maxSegmentDuration ? parseFloat(req.body.maxSegmentDuration) : undefined,
       outputFormat: req.body.outputFormat || undefined,
-      animation: req.body.animation || undefined
+      animation: req.body.animation || undefined,
+      preset: req.body.preset || undefined,
+      account: req.body.account || undefined
     });
 
     if (!validation.success) {
@@ -192,7 +199,14 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
       throw createError(`Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 400);
     }
 
-    const { segmentCount, minSegmentDuration, maxSegmentDuration, outputFormat, animation } = validation.data;
+    const { segmentCount, preset, account } = validation.data;
+    const presetConfig = preset ? PRESETS[preset as Preset] : null;
+
+    const outputFormat    = presetConfig?.outputFormat         ?? validation.data.outputFormat;
+    const animation       = presetConfig?.animation            ?? validation.data.animation;
+    const minSegmentDuration = presetConfig?.minSegmentDuration ?? validation.data.minSegmentDuration;
+    const maxSegmentDuration = presetConfig?.maxSegmentDuration ?? validation.data.maxSegmentDuration;
+    const folderPrefix    = presetConfig?.folderPrefix         ?? '';
     console.log(`⚙️  Split settings:`);
     console.log(`   - Segment count: ${segmentCount}`);
     console.log(`   - Min duration: ${minSegmentDuration}s`);
@@ -231,7 +245,7 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
       console.log(`   Segment ${idx + 1}: ${seg.startTime.toFixed(2)}s - ${seg.endTime.toFixed(2)}s (${seg.duration.toFixed(2)}s)`);
     });
 
-    // Create output directory with timestamp (YYYYMMDD_HHmmss)
+    // Create output directory with optional preset prefix + timestamp (YYYYMMDD_HHmmss)
     const now = new Date();
     const timestamp =
       now.getFullYear() +
@@ -241,9 +255,10 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
       String(now.getHours()).padStart(2, '0') +
       String(now.getMinutes()).padStart(2, '0') +
       String(now.getSeconds()).padStart(2, '0');
-    outputDir = path.join('processed', timestamp);
+    const videoId = `${folderPrefix}${timestamp}`;
+    outputDir = path.join('processed', account, videoId);
     await fs.mkdir(outputDir, { recursive: true });
-    console.log(`📁 Output directory created: ${outputDir}`);
+    console.log(`📁 Output directory created: ${outputDir} (account: ${account})`);
 
     // Split video
     console.log(`✂️  Starting video split process...`);
@@ -277,7 +292,9 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
     res.json({
       success: true,
       data: {
-        videoId: timestamp,
+        videoId,
+        preset: preset ?? null,
+        account,
         originalVideo: {
           filename: req.file.originalname,
           duration: metadata.duration,
@@ -303,8 +320,32 @@ router.post('/split', uploadRateLimiter, upload.single('video'), async (req: Req
 });
 
 /**
+ * Move a processed folder to automateUploads/clip_folder/<account>/
+ *
+ * @route POST /api/videos/move-to-queue
+ * @body { videoId: string, account: string }
+ */
+router.post('/move-to-queue', async (req: Request, res: Response, next) => {
+  try {
+    const { videoId, account } = req.body;
+    if (!videoId || !account) {
+      throw createError('videoId and account are required', 400);
+    }
+    if (!['aqualityguy', 'agenticcmonkey'].includes(account)) {
+      throw createError('Invalid account. Valid: aqualityguy, agenticcmonkey', 400);
+    }
+    const processedDir = path.join(process.cwd(), 'processed');
+    const { destination } = await moveToUploadQueue(videoId, account, processedDir);
+    logger.info(`Moved ${videoId} to upload queue: ${destination}`);
+    res.json({ success: true, data: { videoId, account, destination } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * Download a processed video segment
- * 
+ *
  * Serves a processed video segment file for download.
  * Files are stored in the processed directory organized by video ID.
  * 

@@ -1,29 +1,22 @@
 /**
- * Generates the space-invaders loop video (ship vs aliens, never wins).
- * Run from repo root: npx tsx backend/scripts/generateSpaceInvadersVideo.ts
- * Output: backend/assets/space_invaders_loop.mp4
+ * Generates all space-invaders theme loop videos.
+ * Run from backend/: npx tsx scripts/generateSpaceInvadersVideo.ts
+ * Output: backend/assets/space_invaders_<theme>.mp4
  */
 
 import path from 'path';
 import fs from 'fs/promises';
 import ffmpeg from 'fluent-ffmpeg';
-import { generateFrames } from '../src/utils/spaceInvadersOverlay';
+import { generateFrames, THEMES } from '../src/utils/spaceInvadersOverlay';
 import os from 'os';
 
 const FPS = 30;
 const ASSETS_DIR = path.resolve(__dirname, '../assets');
 
-async function main() {
-  const tmpDir = path.join(os.tmpdir(), `space-invaders-${Date.now()}`);
-  console.log('Generating frames...');
-  const pattern = await generateFrames(tmpDir);
-  console.log('Encoding video with FFmpeg...');
-  await fs.mkdir(ASSETS_DIR, { recursive: true });
-  const outPath = path.join(ASSETS_DIR, 'space_invaders_loop.mp4');
-
+async function encodeVideo(framesPattern: string, outPath: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     ffmpeg()
-      .input(pattern)
+      .input(framesPattern)
       .inputOptions([`-framerate`, String(FPS)])
       .outputOptions([
         '-c:v libx264',
@@ -33,22 +26,42 @@ async function main() {
         '-movflags +faststart',
       ])
       .output(outPath)
-      .on('start', (cmd) => console.log('FFmpeg:', cmd))
-      .on('end', () => {
-        console.log('Done:', outPath);
-        resolve();
-      })
+      .on('start', (cmd) => console.log('  FFmpeg:', cmd))
+      .on('end', () => resolve())
       .on('error', (err) => reject(err))
       .run();
   });
+}
 
-  // Cleanup temp frames
-  const files = await fs.readdir(tmpDir);
-  for (const f of files) {
-    await fs.unlink(path.join(tmpDir, f));
+async function main() {
+  await fs.mkdir(ASSETS_DIR, { recursive: true });
+
+  for (const [themeName, theme] of Object.entries(THEMES)) {
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`Generating theme: ${themeName}`);
+    console.log('='.repeat(50));
+
+    const tmpDir = path.join(os.tmpdir(), `space-invaders-${themeName}-${Date.now()}`);
+    console.log('  Generating frames...');
+    const pattern = await generateFrames(tmpDir, theme);
+
+    const outPath = path.join(ASSETS_DIR, `space_invaders_${themeName}.mp4`);
+    console.log('  Encoding video...');
+    await encodeVideo(pattern, outPath);
+    console.log(`  Done: ${outPath}`);
+
+    // Cleanup temp frames
+    const files = await fs.readdir(tmpDir);
+    for (const f of files) await fs.unlink(path.join(tmpDir, f));
+    await fs.rmdir(tmpDir);
   }
-  await fs.rmdir(tmpDir);
-  console.log('Temp frames removed.');
+
+  // Keep backward-compat: copy classic as the default name
+  const classicPath = path.join(ASSETS_DIR, 'space_invaders_classic.mp4');
+  const defaultPath = path.join(ASSETS_DIR, 'space_invaders_loop.mp4');
+  await fs.copyFile(classicPath, defaultPath);
+  console.log(`\nCopied classic → space_invaders_loop.mp4 (backward compat)`);
+  console.log('\nAll themes generated.');
 }
 
 main().catch((err) => {

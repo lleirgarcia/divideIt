@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
 import fs from 'fs/promises';
+import { buildStyleBlock } from './styleService';
 
 export interface SummarizationOptions {
   maxLength?: number; // Maximum length of summary in words
@@ -9,8 +10,9 @@ export interface SummarizationOptions {
 }
 
 export interface SocialMediaContent {
-  description: string; // Description optimized for TikTok/Instagram Reels
+  description: string; // Description optimized for TikTok/Instagram Reels/YouTube Shorts
   title: string; // Short title (5-7 words)
+  tweets: [string, string]; // 2 tweets for X (max 280 chars each)
 }
 
 /**
@@ -180,31 +182,43 @@ Video transcription:\n\n${text}`;
 
     const langInstruction = language === 'es' ? 'Spanish (español)' : language === 'en' ? 'English' : `language code ${language}`;
 
+    const styleBlock = await buildStyleBlock();
+
+    const systemPrompt = `Eres el asistente de contenido de @aqualityguy. Tu único trabajo es escribir exactamente como él: directo, sin rodeos, con energía, cercano, usando sus expresiones naturales en español. No suenas a ChatGPT ni a copywriter genérico.${styleBlock}
+
+Responde siempre en ${langInstruction}.`;
+
     try {
-      // Generate description for social media
-      const descriptionResponse = await axios.post(
+      // Generar descripción + título + tweets en una sola llamada
+      const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
           model: this.getModel(),
           messages: [
             {
               role: 'system',
-              content: `You are a social media content creator expert. Create engaging descriptions for TikTok and Instagram Reels that hook viewers, include relevant hashtag suggestions, and are optimized for engagement. Always respond in ${langInstruction} only, regardless of the input language.`
+              content: systemPrompt
             },
             {
               role: 'user',
-              content: `Create an engaging description for a TikTok or Instagram Reel based on this video transcription. The description should be:
-- Engaging and hook the viewer in the first sentence
-- Include 3-5 relevant hashtag suggestions at the end
-- Be optimized for social media (catchy, clear, and action-oriented)
-- Maximum ${maxLength} words
-- Written in ${langInstruction} only
+              content: `Basándote en esta transcripción de un vídeo corto, genera el siguiente contenido en JSON con exactamente esta estructura:
 
-Video transcription:\n\n${text}`
+{
+  "description": "Caption para Instagram Reels, YouTube Shorts y TikTok. Sin emojis. Tono directo, primera frase engancha, termina con 1-2 hashtags relevantes. Máximo ${maxLength} palabras.",
+  "title": "Título de 5-7 palabras exactas. Sin emojis. Directo.",
+  "tweets": [
+    "Tweet 1 con la idea principal del vídeo (max 280 caracteres)",
+    "Tweet 2 con una reflexión o provocación relacionada (max 280 caracteres)"
+  ]
+}
+
+Responde SOLO con el JSON, sin texto adicional.
+
+Transcripción:\n\n${text}`
             }
           ],
-          max_tokens: Math.min(maxLength * 2, 300),
-          temperature: 0.7 // Slightly higher for more creative descriptions
+          max_tokens: 600,
+          temperature: 0.5
         },
         {
           headers: {
@@ -214,57 +228,26 @@ Video transcription:\n\n${text}`
         }
       );
 
-      const description = descriptionResponse.data.choices[0]?.message?.content?.trim();
-      
-      if (!description) {
-        throw new Error('No description generated from OpenAI');
-      }
+      const raw = response.data.choices[0]?.message?.content?.trim();
+      if (!raw) throw new Error('No content generated from OpenAI');
 
-      // Generate short title (5-7 words)
-      const titleResponse = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: this.getModel(),
-          messages: [
-            {
-              role: 'system',
-              content: `You are a social media expert. Create catchy, short titles (exactly 5-7 words) for TikTok and Instagram Reels. Titles should be attention-grabbing and summarize the video content. Always respond in ${langInstruction} only. Respond ONLY with the title, no additional text. And assure the title is comprensive enought for the current description.`
-            },
-            {
-              role: 'user',
-              content: `Based on this video transcription, create a catchy title of exactly 5-7 words in ${langInstruction} for a TikTok/Instagram Reel. The title should be attention-grabbing and summarize the main point. Respond ONLY with the title, nothing else. And assure the title is comprensive enought for the current description.\n\nVideo transcription:\n\n${text}`
-            }
-          ],
-          max_tokens: 30,
-          temperature: 0.6
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const parsed = JSON.parse(raw.replace(/^```json\n?|```$/g, '').trim());
 
-      let title = titleResponse.data.choices[0]?.message?.content?.trim();
-      
-      // Clean up title - remove quotes if present, ensure it's 5-7 words
-      if (title) {
-        title = title.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
-        const wordCount = title.split(/\s+/).length;
-        if (wordCount > 7) {
-          // If too long, take first 7 words
-          title = title.split(/\s+/).slice(0, 7).join(' ');
-        }
-      } else {
-        title = 'Video Content';
-      }
+      let title = (parsed.title || 'Video Content').replace(/^["']|["']$/g, '');
+      const wordCount = title.split(/\s+/).length;
+      if (wordCount > 7) title = title.split(/\s+/).slice(0, 7).join(' ');
 
-      logger.debug(`Social media content generated: ${title.substring(0, 30)}...`);
-      
+      const tweets: [string, string] = [
+        (parsed.tweets?.[0] || '').slice(0, 280),
+        (parsed.tweets?.[1] || '').slice(0, 280),
+      ];
+
+      logger.debug(`Social media content generated: ${title}`);
+
       return {
-        description: description,
-        title: title
+        description: parsed.description || '',
+        title,
+        tweets,
       };
     } catch (error: any) {
       logger.error(`Social media content generation error: ${error.message}`);
@@ -290,12 +273,15 @@ Video transcription:\n\n${text}`
     const descriptionPath = `${basePath}_caption.txt`;
     const titlePath = `${basePath}_social_title.txt`;
 
-    // Write description and title to separate files
+    const tweetsPath = `${basePath}_tweets.txt`;
+
+    // Write description, title and tweets to separate files
     await fs.writeFile(descriptionPath, content.description, 'utf-8');
     await fs.writeFile(titlePath, content.title, 'utf-8');
+    await fs.writeFile(tweetsPath, content.tweets.join('\n\n---\n\n'), 'utf-8');
 
-    logger.info(`Social media content saved: ${descriptionPath} and ${titlePath}`);
-    
+    logger.info(`Social media content saved: ${descriptionPath}, ${titlePath}, ${tweetsPath}`);
+
     return {
       descriptionPath,
       titlePath,

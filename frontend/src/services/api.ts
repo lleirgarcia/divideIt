@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3051';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4051';
 
 const apiClient = axios.create({
   baseURL: `${API_URL}/api`,
@@ -85,6 +85,20 @@ export const getSegmentSummary = async (
   const response = await apiClient.get<{ success: boolean; data: { summary: string } }>(
     '/videos/segment-summary',
     { params: { videoId, filename } }
+  );
+  return response.data.data;
+};
+
+/**
+ * Move a processed videoId to automateUploads upload queue
+ */
+export const moveToUploadQueue = async (
+  videoId: string,
+  account: string
+): Promise<{ videoId: string; account: string; destination: string }> => {
+  const response = await apiClient.post<{ success: boolean; data: { videoId: string; account: string; destination: string } }>(
+    '/videos/move-to-queue',
+    { videoId, account }
   );
   return response.data.data;
 };

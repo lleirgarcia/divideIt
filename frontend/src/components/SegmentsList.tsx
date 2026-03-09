@@ -29,7 +29,7 @@ export function SegmentsList() {
   const handleDownload = async (segment: VideoSegment) => {
     setDownloadingId(segment.segmentNumber);
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3051'}${segment.downloadUrl}`;
+      const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4051'}${segment.downloadUrl}`;
       const response = await fetch(url);
       
       if (!response.ok) {

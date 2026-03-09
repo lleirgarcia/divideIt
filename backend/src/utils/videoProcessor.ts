@@ -20,7 +20,7 @@ export interface OutputDimensions {
 export function getOutputDimensions(format: OutputFormat = 'vertical'): OutputDimensions {
   switch (format) {
     case 'vertical':   return { width: 1080, height: 1920 };
-    case 'horizontal': return { width: 1920, height: 1080 };
+    case 'horizontal': return { width: 3440, height: 1440 };
     default:
       throw new Error(`outputFormat desconocido: "${format}". Debe ser 'vertical' o 'horizontal'.`);
   }
@@ -175,6 +175,23 @@ export const generateRandomSegments = (
  * const outputSegments = await splitVideo('./video.mp4', './output', segments);
  */
 export type AnimationOption = 'space_invaders' | 'none';
+
+export type Preset = 'tiktok' | 'instagram' | 'instagram_zoom' | 'youtube_shorts';
+
+export interface PresetConfig {
+  outputFormat: OutputFormat;
+  animation: AnimationOption;
+  minSegmentDuration: number;
+  maxSegmentDuration: number;
+  folderPrefix: string;
+}
+
+export const PRESETS: Record<Preset, PresetConfig> = {
+  tiktok:          { outputFormat: 'vertical',   animation: 'space_invaders', minSegmentDuration: 30, maxSegmentDuration: 50, folderPrefix: 'tiktok_' },
+  instagram:       { outputFormat: 'horizontal', animation: 'none',           minSegmentDuration: 30, maxSegmentDuration: 50, folderPrefix: 'instagram_' },
+  instagram_zoom:  { outputFormat: 'vertical',   animation: 'none',           minSegmentDuration: 30, maxSegmentDuration: 50, folderPrefix: 'instagram_zoom_' },
+  youtube_shorts:  { outputFormat: 'vertical',   animation: 'none',           minSegmentDuration: 30, maxSegmentDuration: 60, folderPrefix: 'youtube_shorts_' },
+};
 
 export const splitVideo = async (
   inputPath: string,
