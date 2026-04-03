@@ -11,7 +11,7 @@ import { getVideoMetadata, generateRandomSegments, splitVideo, PRESETS, Preset }
 import { moveToUploadQueue } from '../src/utils/moveToUploadQueue';
 
 const ACCOUNT = 'aqualityguy';
-const PRESETS_TO_RUN: Preset[] = ['instagram', 'instagram_zoom', 'youtube_shorts'];
+const PRESETS_TO_RUN: Preset[] = ['instagram_zoom', 'youtube_shorts'];
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const PROCESSED_DIR = path.join(process.cwd(), 'processed');
@@ -43,14 +43,14 @@ async function main() {
     console.log('='.repeat(60));
 
     const maxPossible = Math.floor(metadata.duration / config.minSegmentDuration);
-    const segmentCount = Math.min(20, maxPossible);
+    const segmentCount = Math.min(30, maxPossible);
 
     const segments = generateRandomSegments(
       metadata.duration,
       segmentCount,
       config.minSegmentDuration,
       config.maxSegmentDuration
-    ).slice(0, 20);
+    ).slice(0, 30);
 
     if (segments.length === 0) {
       console.warn(`  Video demasiado corto para este preset (min ${config.minSegmentDuration}s). Saltando.`);
